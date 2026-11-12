@@ -10,9 +10,17 @@ use Illuminate\Support\Facades\DB;
 
 class AdminRubricController extends Controller
 {
-    public function index(): JsonResponse
+    public function index(Request $request): JsonResponse
     {
-        $items = RubricItem::orderBy('item_order')->get();
+        $query = RubricItem::orderBy('major')
+            ->orderBy('page_number')
+            ->orderBy('item_order');
+
+        if ($request->filled('major')) {
+            $query->where('major', strtoupper((string) $request->query('major')));
+        }
+
+        $items = $query->get();
 
         return response()->json([
             'rubrics' => $items,
@@ -23,17 +31,21 @@ class AdminRubricController extends Controller
     public function store(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'page_number' => ['required', 'integer', 'min:1', 'max:3'],
-            'item_order' => ['required', 'integer', 'min:1', 'max:20'],
+            'major' => ['required', 'string', 'max:20'],
+            'page_number' => ['required', 'integer', 'min:1', 'max:50'],
+            'page_title' => ['nullable', 'string', 'max:255'],
+            'item_order' => ['required', 'integer', 'min:1', 'max:100'],
             'title' => ['required', 'string', 'max:255'],
             'indicators' => ['required', 'array', 'min:1'],
             'indicators.*' => ['required', 'string', 'max:255'],
             'weight' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
+        $validated['major'] = strtoupper(trim($validated['major']));
+
         $item = DB::transaction(function () use ($validated) {
             $item = RubricItem::create($validated);
-            $this->assertTotalWeightIsHundred();
+            $this->assertTotalWeightIsHundred($validated['major']);
 
             return $item;
         });
@@ -49,17 +61,22 @@ class AdminRubricController extends Controller
         $item = RubricItem::findOrFail($id);
 
         $validated = $request->validate([
-            'page_number' => ['required', 'integer', 'min:1', 'max:3'],
-            'item_order' => ['required', 'integer', 'min:1', 'max:20'],
+            'major' => ['sometimes', 'string', 'max:20'],
+            'page_number' => ['required', 'integer', 'min:1', 'max:50'],
+            'page_title' => ['nullable', 'string', 'max:255'],
+            'item_order' => ['required', 'integer', 'min:1', 'max:100'],
             'title' => ['required', 'string', 'max:255'],
             'indicators' => ['required', 'array', 'min:1'],
             'indicators.*' => ['required', 'string', 'max:255'],
             'weight' => ['required', 'numeric', 'min:0', 'max:100'],
         ]);
 
-        DB::transaction(function () use ($item, $validated) {
+        $major = strtoupper(trim((string) ($validated['major'] ?? $item->major)));
+        $validated['major'] = $major;
+
+        DB::transaction(function () use ($item, $validated, $major) {
             $item->update($validated);
-            $this->assertTotalWeightIsHundred();
+            $this->assertTotalWeightIsHundred($major);
         });
 
         return response()->json([
@@ -78,9 +95,13 @@ class AdminRubricController extends Controller
             ], 422);
         }
 
-        DB::transaction(function () use ($item) {
+        $major = $item->major;
+
+        DB::transaction(function () use ($item, $major) {
             $item->delete();
-            $this->assertTotalWeightIsHundred();
+            if (RubricItem::where('major', $major)->exists()) {
+                $this->assertTotalWeightIsHundred($major);
+            }
         });
 
         return response()->json([
@@ -91,52 +112,95 @@ class AdminRubricController extends Controller
     public function bulkUpdate(Request $request): JsonResponse
     {
         $validated = $request->validate([
+            'major' => ['required', 'string', 'max:20'],
             'rubrics' => ['required', 'array', 'min:1'],
-            'rubrics.*.id' => ['required', 'integer', 'exists:rubric_items,id'],
-            'rubrics.*.page_number' => ['required', 'integer', 'min:1', 'max:3'],
-            'rubrics.*.item_order' => ['required', 'integer', 'min:1', 'max:20'],
+            'rubrics.*.id' => ['nullable', 'integer', 'exists:rubric_items,id'],
+            'rubrics.*.page_number' => ['required', 'integer', 'min:1', 'max:50'],
+            'rubrics.*.page_title' => ['required', 'string', 'max:255'],
             'rubrics.*.title' => ['required', 'string', 'max:255'],
             'rubrics.*.indicators' => ['required', 'array', 'min:1'],
             'rubrics.*.indicators.*' => ['required', 'string', 'max:255'],
             'rubrics.*.weight' => ['required', 'numeric', 'min:0', 'max:100'],
+        ], [
+            'rubrics.*.page_title.required' => 'Judul halaman wajib diisi untuk setiap butir rubrik.',
+            'rubrics.*.indicators.min' => 'Setiap butir rubrik harus memiliki minimal 1 indikator.',
         ]);
+
+        $major = strtoupper(trim($validated['major']));
 
         $submittedSum = collect($validated['rubrics'])->sum(fn ($r) => (float) $r['weight']);
         if (abs($submittedSum - 100.0) > 0.01) {
             return response()->json([
-                'message' => 'Total bobot seluruh butir rubrik harus tepat 100%. Total saat ini: '.round($submittedSum, 2).'%.',
+                'message' => "Total bobot rubrik jurusan {$major} harus tepat 100%. Total saat ini: ".round($submittedSum, 2).'%.',
             ], 422);
         }
 
-        DB::transaction(function () use ($validated) {
-            foreach ($validated['rubrics'] as $row) {
-                RubricItem::where('id', $row['id'])->update([
-                    'page_number' => $row['page_number'],
-                    'item_order' => $row['item_order'],
-                    'title' => $row['title'],
-                    'indicators' => array_values($row['indicators']),
-                    'weight' => $row['weight'],
-                ]);
+        DB::transaction(function () use ($validated, $major) {
+            $keptIds = collect($validated['rubrics'])
+                ->pluck('id')
+                ->filter()
+                ->map(fn ($id) => (int) $id)
+                ->all();
+
+            $toDelete = RubricItem::where('major', $major)
+                ->when(count($keptIds) > 0, fn ($q) => $q->whereNotIn('id', $keptIds))
+                ->get();
+
+            foreach ($toDelete as $removedItem) {
+                if ($removedItem->assessmentDetails()->exists()) {
+                    abort(response()->json([
+                        'message' => "Butir '{$removedItem->title}' tidak dapat dihapus karena sudah dipakai pada riwayat penilaian siswa.",
+                    ], 422));
+                }
+                $removedItem->delete();
             }
-            $this->assertTotalWeightIsHundred();
+
+            // Urutkan per halaman lalu simpan urutan item_order 1..N
+            $orderedRows = collect($validated['rubrics'])
+                ->sortBy('page_number')
+                ->values();
+
+            foreach ($orderedRows as $index => $row) {
+                $payload = [
+                    'major' => $major,
+                    'page_number' => (int) $row['page_number'],
+                    'page_title' => trim($row['page_title']),
+                    'item_order' => $index + 1,
+                    'title' => trim($row['title']),
+                    'indicators' => array_values($row['indicators']),
+                    'weight' => (float) $row['weight'],
+                ];
+
+                if (! empty($row['id'])) {
+                    RubricItem::where('id', $row['id'])->where('major', $major)->update($payload);
+                } else {
+                    RubricItem::create($payload);
+                }
+            }
+
+            $this->assertTotalWeightIsHundred($major);
         });
 
-        $updated = RubricItem::orderBy('item_order')->get();
+        $updated = RubricItem::where('major', $major)
+            ->orderBy('page_number')
+            ->orderBy('item_order')
+            ->get();
 
         return response()->json([
-            'message' => 'Seluruh bobot dan indikator rubrik berhasil disimpan.',
+            'message' => "Seluruh halaman, butir, dan bobot rubrik jurusan {$major} berhasil disimpan.",
+            'major' => $major,
             'rubrics' => $updated,
             'total_weight' => round((float) $updated->sum('weight'), 2),
         ]);
     }
 
-    private function assertTotalWeightIsHundred(): void
+    private function assertTotalWeightIsHundred(string $major): void
     {
-        $totalWeight = (float) RubricItem::sum('weight');
+        $totalWeight = (float) RubricItem::where('major', $major)->sum('weight');
 
         if (abs($totalWeight - 100.0) > 0.01) {
             abort(response()->json([
-                'message' => 'Validasi gagal: total bobot seluruh butir rubrik harus 100% (total akan menjadi '.round($totalWeight, 2).'%). Gunakan simpan massal untuk menyesuaikan bobot antar butir sekaligus.',
+                'message' => "Validasi gagal: total bobot rubrik jurusan {$major} harus 100% (total akan menjadi ".round($totalWeight, 2).'%).',
             ], 422));
         }
     }

@@ -17,8 +17,11 @@
                 class="w-full min-h-[48px] px-3.5 rounded-2xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-indigo-500 outline-none font-semibold text-sm text-slate-800"
                 @change="loadQueue"
               >
+                <option v-if="classes.length === 0" :value="null" disabled>
+                  Belum ada kelas yang ditugaskan
+                </option>
                 <option v-for="cls in classes" :key="cls.id" :value="cls.id">
-                  {{ cls.name }} ({{ cls.academic_year }})
+                  {{ cls.name }} [{{ cls.major }}] ({{ cls.academic_year }})
                 </option>
               </select>
             </div>
@@ -48,7 +51,7 @@
               @click="scannerOpen = true"
             >
               <QrCode class="w-6 h-6" />
-              <span>Scan QR Siswa</span>
+              <span>Scan Kartu / NIS</span>
             </button>
 
             <button
@@ -110,6 +113,15 @@
       </div>
 
       <!-- Empty State -->
+      <div
+        v-else-if="classes.length === 0"
+        class="bg-white rounded-3xl border border-slate-200 p-10 text-center"
+      >
+        <Users class="w-12 h-12 text-amber-400 mx-auto mb-3" />
+        <p class="font-bold text-slate-800">Belum ada kelas yang ditugaskan kepada akun penguji ini.</p>
+        <p class="text-sm text-slate-500 mt-1">Hubungi Admin untuk menetapkan daftar kelas yang akan Anda uji.</p>
+      </div>
+
       <div
         v-else-if="filteredStudents.length === 0"
         class="bg-white rounded-3xl border border-slate-200 p-10 text-center"

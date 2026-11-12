@@ -47,7 +47,7 @@
                 class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-indigo-500 outline-none text-sm bg-white"
               >
                 <option v-for="cls in classes" :key="cls.id" :value="cls.id">
-                  {{ cls.name }} ({{ cls.academic_year }})
+                  {{ cls.name }} [{{ cls.major }}] ({{ cls.academic_year }})
                 </option>
               </select>
             </div>

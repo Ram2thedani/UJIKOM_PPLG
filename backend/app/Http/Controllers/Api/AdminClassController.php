@@ -11,7 +11,11 @@ class AdminClassController extends Controller
 {
     public function index(): JsonResponse
     {
-        $classes = SchoolClass::withCount('students')->orderBy('name')->get();
+        $classes = SchoolClass::withCount(['students', 'examiners'])
+            ->with(['examiners:id,name,email'])
+            ->orderBy('major')
+            ->orderBy('name')
+            ->get();
 
         return response()->json([
             'classes' => $classes,
@@ -22,9 +26,11 @@ class AdminClassController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
+            'major' => ['required', 'string', 'max:20'],
             'academic_year' => ['required', 'string', 'max:20'],
         ]);
 
+        $validated['major'] = strtoupper(trim($validated['major']));
         $schoolClass = SchoolClass::create($validated);
 
         return response()->json([
@@ -39,9 +45,11 @@ class AdminClassController extends Controller
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:100'],
+            'major' => ['required', 'string', 'max:20'],
             'academic_year' => ['required', 'string', 'max:20'],
         ]);
 
+        $validated['major'] = strtoupper(trim($validated['major']));
         $schoolClass->update($validated);
 
         return response()->json([

@@ -15,10 +15,16 @@
           </button>
 
           <div class="min-w-0">
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap">
               <h1 class="font-extrabold text-slate-900 text-base sm:text-lg truncate">
                 {{ student?.name || 'Memuat...' }}
               </h1>
+              <span
+                v-if="student?.major"
+                class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 text-[11px] font-extrabold uppercase shrink-0"
+              >
+                {{ student.major }}
+              </span>
               <span
                 v-if="student?.is_priority"
                 class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-extrabold uppercase shrink-0"
@@ -49,7 +55,6 @@
 
         <!-- Live Score, Live Badge, & Passive Timer -->
         <div class="flex items-center gap-2.5 sm:gap-4 ml-auto">
-          <!-- Passive Timer -->
           <div
             class="px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 flex items-center gap-1.5 text-slate-700"
             title="Durasi sesi penilaian"
@@ -58,7 +63,6 @@
             <span class="font-mono text-sm font-bold">{{ formatDuration(elapsedSeconds) }}</span>
           </div>
 
-          <!-- Live Final Score + Status Badge -->
           <div class="flex items-center gap-2.5 pl-3 border-l border-slate-200">
             <div class="text-right">
               <p class="text-[10px] font-bold uppercase tracking-wider text-slate-400">Nilai Akhir</p>
@@ -83,38 +87,38 @@
         </div>
       </div>
 
-      <!-- 3-Page Step-Stepper -->
-      <div class="max-w-5xl mx-auto px-4 sm:px-6 pb-3">
-        <div class="grid grid-cols-3 gap-2">
+      <!-- Dynamic N-Page Step-Stepper -->
+      <div v-if="pages.length > 0" class="max-w-5xl mx-auto px-4 sm:px-6 pb-3">
+        <div class="flex gap-2 overflow-x-auto pb-1">
           <button
-            v-for="page in pageMeta"
-            :key="page.number"
+            v-for="(page, idx) in pages"
+            :key="page.page_number"
             type="button"
-            class="min-h-[48px] px-3 py-2 rounded-2xl border text-left transition flex items-center gap-2.5 active:scale-[0.99]"
+            class="flex-1 min-w-[140px] min-h-[48px] px-3 py-2 rounded-2xl border text-left transition flex items-center gap-2.5 active:scale-[0.99]"
             :class="
-              currentPage === page.number
+              currentPage === page.page_number
                 ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm'
                 : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
             "
-            @click="currentPage = page.number"
+            @click="currentPage = page.page_number"
           >
             <span
               class="w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0"
               :class="
-                currentPage === page.number
+                currentPage === page.page_number
                   ? 'bg-white/20 text-white'
                   : 'bg-white border border-slate-300 text-slate-700'
               "
             >
-              {{ page.number }}
+              {{ idx + 1 }}
             </span>
             <div class="min-w-0">
-              <p class="text-xs font-extrabold truncate">{{ page.shortTitle }}</p>
+              <p class="text-xs font-extrabold truncate">{{ page.page_title }}</p>
               <p
                 class="text-[11px] truncate"
-                :class="currentPage === page.number ? 'text-indigo-100' : 'text-slate-500'"
+                :class="currentPage === page.page_number ? 'text-indigo-100' : 'text-slate-500'"
               >
-                Bobot {{ pageWeight(page.number) }}%
+                Bobot {{ page.total_weight }}%
               </p>
             </div>
           </button>
@@ -124,7 +128,6 @@
 
     <!-- Main Assessment Content -->
     <main class="max-w-5xl mx-auto px-4 sm:px-6 pt-5 space-y-5">
-      <!-- Read-Only Banner -->
       <div
         v-if="isReadOnly"
         class="rounded-2xl bg-amber-50 border border-amber-200 p-4 flex flex-wrap items-center justify-between gap-3"
@@ -145,20 +148,19 @@
         </button>
       </div>
 
-      <!-- Loading -->
       <div v-if="loading" class="space-y-4">
         <div v-for="n in 3" :key="n" class="h-52 rounded-3xl bg-white border border-slate-200 animate-pulse"></div>
       </div>
 
-      <template v-else>
+      <template v-else-if="pages.length > 0">
         <!-- Page Header -->
         <div class="flex items-center justify-between gap-3">
           <div>
             <p class="text-xs font-bold uppercase tracking-wider text-indigo-600">
-              Halaman {{ currentPage }} dari 3
+              Halaman {{ currentPageIndex + 1 }} dari {{ pages.length }} ({{ student?.major }})
             </p>
             <h2 class="text-lg sm:text-xl font-extrabold text-slate-900">
-              {{ pageMeta[currentPage - 1].fullTitle }}
+              {{ activePageMeta?.page_title }}
             </h2>
           </div>
 
@@ -172,7 +174,7 @@
           </button>
         </div>
 
-        <!-- 3 Rubric Items for Active Page -->
+        <!-- Rubric Items for Active Page -->
         <section class="space-y-4">
           <div
             v-for="item in currentPageItems"
@@ -197,7 +199,6 @@
                   {{ item.title }}
                 </h3>
 
-                <!-- Indikator Penilaian -->
                 <div class="mt-3 flex flex-wrap gap-1.5">
                   <span
                     v-for="(ind, idx) in item.indicators"
@@ -210,7 +211,6 @@
                 </div>
               </div>
 
-              <!-- Current Score Display (NO input field -> zero virtual keyboard popup!) -->
               <div class="flex sm:flex-col items-center justify-between sm:items-end gap-2 shrink-0">
                 <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Skor Mentah</span>
                 <div
@@ -226,7 +226,6 @@
               </div>
             </div>
 
-            <!-- 5 Large Touch Buttons (Tablet-Optimized) -->
             <div class="mt-5 grid grid-cols-5 gap-2 sm:gap-3">
               <button
                 type="button"
@@ -276,9 +275,9 @@
           </div>
         </section>
 
-        <!-- Page 3 Extra: Quick Tags & Examiner Note -->
+        <!-- Final Page Extra: Quick Tags & Examiner Note -->
         <section
-          v-if="currentPage === 3"
+          v-if="isLastPage"
           class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 sm:p-6 space-y-5"
         >
           <div>
@@ -294,7 +293,7 @@
                 </p>
                 <div class="flex flex-wrap gap-2">
                   <button
-                    v-for="tag in appreciationTags"
+                    v-for="tag in activeAppreciationTags"
                     :key="tag"
                     type="button"
                     :disabled="isReadOnly"
@@ -317,7 +316,7 @@
                 </p>
                 <div class="flex flex-wrap gap-2">
                   <button
-                    v-for="tag in remedialTags"
+                    v-for="tag in activeRemedialTags"
                     :key="tag"
                     type="button"
                     :disabled="isReadOnly"
@@ -345,7 +344,7 @@
               v-model="examinerNote"
               :disabled="isReadOnly"
               rows="3"
-              placeholder="Tuliskan catatan spesifik perbaikan bug, fitur yang kurang, atau apresiasi untuk siswa..."
+              placeholder="Tuliskan catatan spesifik perbaikan atau apresiasi untuk siswa..."
               class="w-full rounded-2xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 outline-none p-4 text-sm disabled:opacity-70"
             ></textarea>
           </div>
@@ -358,21 +357,21 @@
       <div class="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
         <button
           type="button"
-          :disabled="currentPage === 1"
+          :disabled="currentPageIndex <= 0"
           class="min-h-[52px] px-5 rounded-2xl border border-slate-300 bg-white hover:bg-slate-100 disabled:opacity-40 text-slate-800 font-bold text-sm sm:text-base flex items-center gap-2 transition active:scale-95"
-          @click="currentPage--"
+          @click="goPrevPage"
         >
           <ChevronLeft class="w-5 h-5" />
           <span>Sebelumnya</span>
         </button>
 
         <button
-          v-if="currentPage < 3"
+          v-if="!isLastPage"
           type="button"
           class="flex-1 sm:flex-none min-h-[52px] px-7 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-sm sm:text-base shadow-lg shadow-indigo-600/25 flex items-center justify-center gap-2 transition active:scale-95"
-          @click="currentPage++"
+          @click="goNextPage"
         >
-          <span>Lanjut Halaman {{ currentPage + 1 }}</span>
+          <span>Lanjut Halaman {{ currentPageIndex + 2 }}</span>
           <ChevronRight class="w-5 h-5" />
         </button>
 
@@ -399,7 +398,6 @@
       </div>
     </footer>
 
-    <!-- Double-Grading Guard Modal (jika diakses langsung via URL dalam mode Read-Only) -->
     <DoubleGradingModal
       :open="guardModalOpen"
       :student="studentForModal"
@@ -443,6 +441,7 @@ const submitting = ref(false)
 const student = ref(null)
 const existingAssessment = ref(null)
 const alreadyGraded = ref(false)
+const pages = ref([])
 const rubrics = ref([])
 
 const currentPage = ref(1)
@@ -456,29 +455,48 @@ const guardModalOpen = ref(false)
 
 let timerInterval = null
 
-const pageMeta = [
-  { number: 1, shortTitle: 'DB & Desain', fullTitle: 'Analisis, Desain, & Arsitektur Database' },
-  { number: 2, shortTitle: 'Koding & Fitur', fullTitle: 'Implementasi Koding, Fitur, & Standar' },
-  { number: 3, shortTitle: 'Testing & Docs', fullTitle: 'Pengujian, Debugging, & Dokumentasi' },
-]
+const pplgTags = {
+  appreciation: [
+    'Struktur DB & Relasi Rapi',
+    'Query SQL & Trigger Efisien',
+    'CRUD & Role Auth Lengkap',
+    'UI/UX Bersih & Responsif',
+    'Error Handling Baik',
+    'Dokumentasi Kode Jelas',
+  ],
+  remedial: [
+    'Perbaiki Relasi / Normalisasi DB',
+    'Lengkapi Stored Procedure / Trigger',
+    'Alur Transaksi Belum Berjalan',
+    'Masih Ada Bug Fatal / Error',
+    'Validasi Input Belum Ada',
+    'Dokumentasi Kode Kurang Lengkap',
+  ],
+}
 
-const appreciationTags = [
-  'Struktur DB & Relasi Rapi',
-  'Query SQL & Trigger Efisien',
-  'CRUD & Role Auth Lengkap',
-  'UI/UX Bersih & Responsif',
-  'Error Handling Baik',
-  'Dokumentasi Kode Jelas',
-]
+const tmsTags = {
+  appreciation: [
+    'Penerapan K3 & APD Tertib',
+    'Pengukuran Presisi Akurat',
+    'Langkah Kerja Sesuai SOP',
+    'Hasil Finishing Rapi',
+    'Uji Fungsi Berjalan Normal',
+  ],
+  remedial: [
+    'Lengkapi APD & Kebersihan Kerja',
+    'Perbaiki Kalibrasi / Hasil Ukur',
+    'Setting Parameter Kerja Belum Tepat',
+    'Toleransi Dimensi Melebihi Batas',
+    'Perlu Perbaikan Finishing Benda Kerja',
+  ],
+}
 
-const remedialTags = [
-  'Perbaiki Relasi / Normalisasi DB',
-  'Lengkapi Stored Procedure / Trigger',
-  'Alur Transaksi Belum Berjalan',
-  'Masih Ada Bug Fatal / Error',
-  'Validasi Input Belum Ada',
-  'Dokumentasi Kode Kurang Lengkap',
-]
+const activeAppreciationTags = computed(() =>
+  student.value?.major === 'TMS' ? tmsTags.appreciation : pplgTags.appreciation
+)
+const activeRemedialTags = computed(() =>
+  student.value?.major === 'TMS' ? tmsTags.remedial : pplgTags.remedial
+)
 
 const isReadOnly = computed(() => {
   if (route.query.mode === 'readonly') return true
@@ -496,14 +514,28 @@ const studentForModal = computed(() => {
   }
 })
 
+const currentPageIndex = computed(() =>
+  Math.max(0, pages.value.findIndex((p) => p.page_number === currentPage.value))
+)
+const activePageMeta = computed(() => pages.value[currentPageIndex.value] || null)
+const isLastPage = computed(() =>
+  pages.value.length > 0 && currentPageIndex.value === pages.value.length - 1
+)
+
 const currentPageItems = computed(() =>
   rubrics.value.filter((item) => item.page_number === currentPage.value)
 )
 
-function pageWeight(pageNum) {
-  return rubrics.value
-    .filter((item) => item.page_number === pageNum)
-    .reduce((sum, item) => sum + Number(item.weight), 0)
+function goPrevPage() {
+  if (currentPageIndex.value > 0) {
+    currentPage.value = pages.value[currentPageIndex.value - 1].page_number
+  }
+}
+
+function goNextPage() {
+  if (currentPageIndex.value < pages.value.length - 1) {
+    currentPage.value = pages.value[currentPageIndex.value + 1].page_number
+  }
 }
 
 function itemWeightedScore(item) {
@@ -519,8 +551,7 @@ const liveFinalScore = computed(() => {
 function adjustScore(rubricId, delta) {
   if (isReadOnly.value) return
   const current = Number(scores[rubricId] ?? 80)
-  const clamped = Math.max(0, Math.min(100, current + delta))
-  scores[rubricId] = clamped
+  scores[rubricId] = Math.max(0, Math.min(100, current + delta))
   saveDraft()
 }
 
@@ -533,11 +564,8 @@ function setScore(rubricId, value) {
 function toggleTag(tag) {
   if (isReadOnly.value) return
   const idx = quickTags.value.indexOf(tag)
-  if (idx >= 0) {
-    quickTags.value.splice(idx, 1)
-  } else {
-    quickTags.value.push(tag)
-  }
+  if (idx >= 0) quickTags.value.splice(idx, 1)
+  else quickTags.value.push(tag)
   saveDraft()
 }
 
@@ -590,16 +618,19 @@ async function loadAssessmentData() {
   try {
     const { data } = await api.get(`/assessments/${studentId.value}`)
     student.value = data.student
-    rubrics.value = data.rubrics
+    pages.value = data.pages || []
+    rubrics.value = data.rubrics || []
     alreadyGraded.value = data.already_graded
     existingAssessment.value = data.assessment
 
-    // Inisialisasi default skor 80
-    data.rubrics.forEach((item) => {
+    if (pages.value.length > 0) {
+      currentPage.value = pages.value[0].page_number
+    }
+
+    rubrics.value.forEach((item) => {
       scores[item.id] = 80
     })
 
-    // Jika sudah dinilai, isi dari data tersimpan
     if (data.assessment && data.already_graded) {
       data.assessment.details?.forEach((d) => {
         scores[d.rubric_item_id] = d.raw_score
@@ -609,7 +640,6 @@ async function loadAssessmentData() {
       elapsedSeconds.value = isReadOnly.value ? (data.assessment.duration_seconds || 0) : 0
     }
 
-    // Pulihkan draft localStorage jika sedang dalam mode edit
     if (!isReadOnly.value) {
       const rawDraft = localStorage.getItem(draftStorageKey.value)
       if (rawDraft) {
@@ -617,15 +647,11 @@ async function loadAssessmentData() {
           const parsed = JSON.parse(rawDraft)
           if (parsed.scores) {
             Object.entries(parsed.scores).forEach(([k, v]) => {
-              scores[k] = Number(v)
+              if (k in scores) scores[k] = Number(v)
             })
           }
-          if (Array.isArray(parsed.quick_tags)) {
-            quickTags.value = parsed.quick_tags
-          }
-          if (typeof parsed.examiner_note === 'string') {
-            examinerNote.value = parsed.examiner_note
-          }
+          if (Array.isArray(parsed.quick_tags)) quickTags.value = parsed.quick_tags
+          if (typeof parsed.examiner_note === 'string') examinerNote.value = parsed.examiner_note
           if (typeof parsed.elapsed_seconds === 'number' && !alreadyGraded.value) {
             elapsedSeconds.value = parsed.elapsed_seconds
           }
@@ -697,9 +723,7 @@ function goBack() {
 }
 
 watch(examinerNote, () => {
-  if (!loading.value && !isReadOnly.value) {
-    saveDraft()
-  }
+  if (!loading.value && !isReadOnly.value) saveDraft()
 })
 
 watch(isReadOnly, (readOnly) => {

@@ -48,6 +48,7 @@ class StudentDashboardController extends Controller
                 'name' => $student->user->name,
                 'nis' => $student->nis,
                 'class_name' => $student->schoolClass->name,
+                'major' => $student->schoolClass->major,
                 'academic_year' => $student->schoolClass->academic_year,
                 'qr_code_token' => $student->qr_code_token,
                 'is_priority' => $student->is_priority,

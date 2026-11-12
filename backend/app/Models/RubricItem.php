@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['page_number', 'item_order', 'title', 'indicators', 'weight'])]
+#[Fillable(['major', 'page_number', 'page_title', 'item_order', 'title', 'indicators', 'weight'])]
 class RubricItem extends Model
 {
     use HasFactory;

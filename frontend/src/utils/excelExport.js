@@ -8,6 +8,7 @@ export function exportAssessmentExcel(exportPayload) {
       No: index + 1,
       NIS: row.nis,
       'Nama Siswa': row.name,
+      Jurusan: row.major || classInfo?.major || 'PPLG',
       Kelas: row.class_name,
       'Tahun Ajaran': row.academic_year,
       Prioritas: row.is_priority ? `Ya (${row.priority_note || '-'})` : 'Tidak',
@@ -41,8 +42,10 @@ export function exportAssessmentExcel(exportPayload) {
   })
 
   const rubricRows = rubrics.map((r) => ({
+    Jurusan: r.major || classInfo?.major || 'PPLG',
     'No Butir': r.item_order,
     Halaman: r.page_number,
+    'Judul Halaman': r.page_title || `Halaman ${r.page_number}`,
     'Aspek / Judul Rubrik': r.title,
     'Bobot (%)': Number(r.weight),
     Indikator: Array.isArray(r.indicators) ? r.indicators.join('; ') : '',

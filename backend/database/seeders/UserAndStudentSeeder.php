@@ -25,8 +25,19 @@ class UserAndStudentSeeder extends Seeder
             ]
         );
 
-        // 2. Akun Penguji
-        User::updateOrCreate(
+        // 2. Kelas PPLG & Kelas TMS
+        $pplgClass = SchoolClass::updateOrCreate(
+            ['name' => 'XII PPLG 1', 'academic_year' => '2026/2027'],
+            ['major' => 'PPLG']
+        );
+
+        $tmsClass = SchoolClass::updateOrCreate(
+            ['name' => 'XII TMS 1', 'academic_year' => '2026/2027'],
+            ['major' => 'TMS']
+        );
+
+        // 3. Akun Penguji PPLG & Penguji TMS (Penugasan kelas masing-masing)
+        $examinerPplg = User::updateOrCreate(
             ['username' => 'penguji@ujikom.sch.id'],
             [
                 'name' => 'Budi Santoso, S.Kom',
@@ -36,14 +47,22 @@ class UserAndStudentSeeder extends Seeder
                 'revision_pin' => '123456',
             ]
         );
+        $examinerPplg->assignedClasses()->sync([$pplgClass->id]);
 
-        // 3. Kelas XII PPLG 1
-        $schoolClass = SchoolClass::firstOrCreate(
-            ['name' => 'XII PPLG 1', 'academic_year' => '2026/2027']
+        $examinerTms = User::updateOrCreate(
+            ['username' => 'penguji.tms@ujikom.sch.id'],
+            [
+                'name' => 'Agus Wijaya, S.T',
+                'email' => 'penguji.tms@ujikom.sch.id',
+                'password' => Hash::make('penguji123'),
+                'role' => 'penguji',
+                'revision_pin' => '123456',
+            ]
         );
+        $examinerTms->assignedClasses()->sync([$tmsClass->id]);
 
-        // 4. 36 Akun Siswa (3 siswa prioritas)
-        $studentNames = [
+        // 4. 36 Akun Siswa PPLG (3 siswa prioritas)
+        $pplgStudentNames = [
             'Aditya Pratama Wijaya',
             'Aisyah Nur Rahma',
             'Alif Rizky Ramadhan',
@@ -88,32 +107,51 @@ class UserAndStudentSeeder extends Seeder
             11 => 'Keperluan Medis / Pulang Lebih Awal',
         ];
 
-        foreach ($studentNames as $index => $name) {
+        foreach ($pplgStudentNames as $index => $name) {
             $nis = (string) (24251001 + $index);
-
-            $user = User::updateOrCreate(
-                ['username' => $nis],
-                [
-                    'name' => $name,
-                    'email' => null,
-                    'password' => Hash::make($nis),
-                    'role' => 'siswa',
-                    'revision_pin' => null,
-                ]
-            );
-
-            $existingStudent = Student::where('nis', $nis)->first();
-
-            Student::updateOrCreate(
-                ['nis' => $nis],
-                [
-                    'user_id' => $user->id,
-                    'class_id' => $schoolClass->id,
-                    'qr_code_token' => $existingStudent?->qr_code_token ?? Str::uuid()->toString(),
-                    'is_priority' => array_key_exists($index, $priorityIndices),
-                    'priority_note' => $priorityIndices[$index] ?? null,
-                ]
-            );
+            $this->upsertStudent($name, $nis, $pplgClass->id, array_key_exists($index, $priorityIndices), $priorityIndices[$index] ?? null);
         }
+
+        // 5. Contoh 6 Akun Siswa TMS
+        $tmsStudentNames = [
+            'Ahmad Fauzi',
+            'Bayu Firmansyah',
+            'Dendi Kurnia',
+            'Fikri Haikal',
+            'Hendra Kusuma',
+            'Wahyu Saputro',
+        ];
+
+        foreach ($tmsStudentNames as $index => $name) {
+            $nis = (string) (24252001 + $index);
+            $this->upsertStudent($name, $nis, $tmsClass->id, $index === 0, $index === 0 ? 'Persiapan Lomba Teknik' : null);
+        }
+    }
+
+    private function upsertStudent(string $name, string $nis, int $classId, bool $isPriority, ?string $priorityNote): void
+    {
+        $user = User::updateOrCreate(
+            ['username' => $nis],
+            [
+                'name' => $name,
+                'email' => null,
+                'password' => Hash::make($nis),
+                'role' => 'siswa',
+                'revision_pin' => null,
+            ]
+        );
+
+        $existingStudent = Student::where('nis', $nis)->first();
+
+        Student::updateOrCreate(
+            ['nis' => $nis],
+            [
+                'user_id' => $user->id,
+                'class_id' => $classId,
+                'qr_code_token' => $existingStudent?->qr_code_token ?? Str::uuid()->toString(),
+                'is_priority' => $isPriority,
+                'priority_note' => $priorityNote,
+            ]
+        );
     }
 }

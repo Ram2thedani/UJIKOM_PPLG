@@ -9,12 +9,16 @@ use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class AdminDashboardController extends Controller
 {
     public function index(): JsonResponse
     {
-        $classes = SchoolClass::with(['students.assessment'])->orderBy('name')->get();
+        $classes = SchoolClass::with(['students.assessment', 'examiners:id,name'])
+            ->orderBy('major')
+            ->orderBy('name')
+            ->get();
 
         $totalStudents = 0;
         $kompetenCount = 0;
@@ -56,7 +60,9 @@ class AdminDashboardController extends Controller
             return [
                 'id' => $schoolClass->id,
                 'name' => $schoolClass->name,
+                'major' => $schoolClass->major,
                 'academic_year' => $schoolClass->academic_year,
+                'examiners' => $schoolClass->examiners->pluck('name')->values(),
                 'total' => $classTotal,
                 'graded' => $classGraded,
                 'kompeten' => $classKompeten,
@@ -68,7 +74,10 @@ class AdminDashboardController extends Controller
         })->values();
 
         $examiners = User::whereIn('role', ['penguji', 'admin'])
-            ->with(['assessmentsGiven' => fn ($q) => $q->where('status', '!=', 'pending')])
+            ->with([
+                'assignedClasses:id,name,major',
+                'assessmentsGiven' => fn ($q) => $q->where('status', '!=', 'pending'),
+            ])
             ->orderBy('role')
             ->orderBy('name')
             ->get();
@@ -82,6 +91,7 @@ class AdminDashboardController extends Controller
                 'name' => $examiner->name,
                 'username' => $examiner->username,
                 'role' => $examiner->role,
+                'assigned_classes' => $examiner->assignedClasses->map(fn ($c) => $c->name)->values(),
                 'total_graded' => $count,
                 'kompeten_count' => $assessments->where('status', 'kompeten')->count(),
                 'remedial_count' => $assessments->where('status', 'remedial')->count(),
@@ -101,6 +111,7 @@ class AdminDashboardController extends Controller
                 'student_name' => $a->student->user->name,
                 'nis' => $a->student->nis,
                 'class_name' => $a->student->schoolClass->name,
+                'major' => $a->student->schoolClass->major,
                 'examiner_name' => $a->examiner->name,
                 'final_score' => $a->final_score,
                 'status' => $a->status,
@@ -129,10 +140,8 @@ class AdminDashboardController extends Controller
         ]);
     }
 
-    public function export(string $classId): JsonResponse
+    public function export(Request $request, string $classId): JsonResponse
     {
-        $rubrics = RubricItem::orderBy('item_order')->get();
-
         $query = Student::with([
             'user',
             'schoolClass',
@@ -140,17 +149,31 @@ class AdminDashboardController extends Controller
             'assessment.details',
         ])->orderBy('class_id')->orderBy('nis');
 
-        $classInfo = ['id' => 'all', 'name' => 'Semua Kelas', 'academic_year' => ''];
-
         if ($classId !== 'all') {
             $schoolClass = SchoolClass::findOrFail((int) $classId);
             $query->where('class_id', $schoolClass->id);
+            $major = $schoolClass->major;
             $classInfo = [
                 'id' => $schoolClass->id,
                 'name' => $schoolClass->name,
+                'major' => $major,
                 'academic_year' => $schoolClass->academic_year,
             ];
+        } else {
+            $major = strtoupper((string) $request->query('major', 'PPLG'));
+            $query->whereHas('schoolClass', fn ($q) => $q->where('major', $major));
+            $classInfo = [
+                'id' => 'all',
+                'name' => "Semua Kelas ({$major})",
+                'major' => $major,
+                'academic_year' => '',
+            ];
         }
+
+        $rubrics = RubricItem::where('major', $major)
+            ->orderBy('page_number')
+            ->orderBy('item_order')
+            ->get();
 
         $rows = $query->get()->map(function (Student $student) use ($rubrics) {
             $assessment = $student->assessment;
@@ -172,6 +195,7 @@ class AdminDashboardController extends Controller
                 'nis' => $student->nis,
                 'name' => $student->user->name,
                 'class_name' => $student->schoolClass->name,
+                'major' => $student->schoolClass->major,
                 'academic_year' => $student->schoolClass->academic_year,
                 'is_priority' => $student->is_priority,
                 'priority_note' => $student->priority_note,

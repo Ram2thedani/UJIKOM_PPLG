@@ -38,6 +38,7 @@ class AdminStudentController extends Controller
             'user_id' => $student->user_id,
             'class_id' => $student->class_id,
             'class_name' => $student->schoolClass->name,
+            'major' => $student->schoolClass->major,
             'academic_year' => $student->schoolClass->academic_year,
             'name' => $student->user->name,
             'nis' => $student->nis,

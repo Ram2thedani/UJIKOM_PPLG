@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 
@@ -14,6 +15,7 @@ class AdminExaminerController extends Controller
     public function index(): JsonResponse
     {
         $examiners = User::where('role', 'penguji')
+            ->with(['assignedClasses:id,name,major,academic_year'])
             ->withCount(['assessmentsGiven' => fn ($q) => $q->where('status', '!=', 'pending')])
             ->orderBy('name')
             ->get()
@@ -25,6 +27,13 @@ class AdminExaminerController extends Controller
                 'role' => $u->role,
                 'has_pin' => $u->hasPinConfigured(),
                 'assessments_count' => $u->assessments_given_count,
+                'assigned_class_ids' => $u->assignedClasses->pluck('id')->values(),
+                'assigned_classes' => $u->assignedClasses->map(fn ($c) => [
+                    'id' => $c->id,
+                    'name' => $c->name,
+                    'major' => $c->major,
+                    'academic_year' => $c->academic_year,
+                ])->values(),
                 'created_at' => $u->created_at?->toIso8601String(),
             ]);
 
@@ -40,19 +49,29 @@ class AdminExaminerController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email', 'unique:users,username'],
             'password' => ['required', 'string', 'min:6', 'max:100'],
             'revision_pin' => ['required', 'digits:6'],
+            'class_ids' => ['nullable', 'array'],
+            'class_ids.*' => ['integer', 'exists:classes,id'],
         ]);
 
-        $examiner = User::create([
-            'name' => $validated['name'],
-            'username' => $validated['email'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => 'penguji',
-            'revision_pin' => $validated['revision_pin'],
-        ]);
+        $examiner = DB::transaction(function () use ($validated) {
+            $user = User::create([
+                'name' => $validated['name'],
+                'username' => $validated['email'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                'role' => 'penguji',
+                'revision_pin' => $validated['revision_pin'],
+            ]);
+
+            $user->assignedClasses()->sync($validated['class_ids'] ?? []);
+
+            return $user;
+        });
+
+        $examiner->load('assignedClasses:id,name,major,academic_year');
 
         return response()->json([
-            'message' => 'Akun penguji berhasil ditambahkan.',
+            'message' => 'Akun penguji dan penugasan kelas berhasil ditambahkan.',
             'examiner' => $examiner,
         ], 201);
     }
@@ -72,23 +91,33 @@ class AdminExaminerController extends Controller
             ],
             'password' => ['nullable', 'string', 'min:6', 'max:100'],
             'revision_pin' => ['nullable', 'digits:6'],
+            'class_ids' => ['nullable', 'array'],
+            'class_ids.*' => ['integer', 'exists:classes,id'],
         ]);
 
-        $payload = [
-            'name' => $validated['name'],
-            'username' => $validated['email'],
-            'email' => $validated['email'],
-        ];
+        DB::transaction(function () use ($examiner, $validated) {
+            $payload = [
+                'name' => $validated['name'],
+                'username' => $validated['email'],
+                'email' => $validated['email'],
+            ];
 
-        if (! empty($validated['password'])) {
-            $payload['password'] = Hash::make($validated['password']);
-        }
+            if (! empty($validated['password'])) {
+                $payload['password'] = Hash::make($validated['password']);
+            }
 
-        if (! empty($validated['revision_pin'])) {
-            $payload['revision_pin'] = $validated['revision_pin'];
-        }
+            if (! empty($validated['revision_pin'])) {
+                $payload['revision_pin'] = $validated['revision_pin'];
+            }
 
-        $examiner->update($payload);
+            $examiner->update($payload);
+
+            if (array_key_exists('class_ids', $validated)) {
+                $examiner->assignedClasses()->sync($validated['class_ids'] ?? []);
+            }
+        });
+
+        $examiner->load('assignedClasses:id,name,major,academic_year');
 
         return response()->json([
             'message' => 'Akun penguji berhasil diperbarui.',

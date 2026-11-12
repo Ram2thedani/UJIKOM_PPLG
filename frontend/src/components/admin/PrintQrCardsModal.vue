@@ -8,7 +8,7 @@
         <!-- Toolbar (disembunyikan saat print) -->
         <div class="no-print px-6 py-4 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-3 sticky top-0 z-10">
           <div>
-            <h3 class="font-bold text-lg">Cetak Massal Kartu QR Peserta Ujikom</h3>
+            <h3 class="font-bold text-lg">Cetak Massal Kartu Peserta Ujikom (OCR NIS + QR)</h3>
             <p class="text-xs text-slate-300">Total {{ students.length }} kartu peserta siap dicetak (A4 Grid)</p>
           </div>
           <div class="flex items-center gap-2.5">
@@ -35,18 +35,14 @@
           <div
             v-for="student in students"
             :key="student.id"
-            class="qr-print-card border-2 border-slate-300 rounded-2xl p-4 bg-white flex flex-col items-center text-center"
+            class="qr-print-card border-2 border-slate-800 rounded-2xl p-4 bg-white flex flex-col items-center text-center"
           >
-            <div class="w-full border-b border-slate-200 pb-2 mb-3">
+            <div class="w-full border-b border-slate-200 pb-2 mb-2.5">
               <p class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">
-                Kartu Peserta Ujikom RPL/PPLG
+                Kartu Peserta Ujikom • {{ student.major || 'PPLG' }}
               </p>
               <p class="font-extrabold text-slate-900 text-sm truncate mt-0.5">{{ student.name }}</p>
-              <div class="flex items-center justify-center gap-2 text-[11px] text-slate-600 mt-0.5">
-                <span class="font-mono font-bold">NIS: {{ student.nis }}</span>
-                <span>•</span>
-                <span>{{ student.class_name }}</span>
-              </div>
+              <p class="text-[11px] font-semibold text-slate-600">{{ student.class_name }}</p>
               <span
                 v-if="student.is_priority"
                 class="inline-block mt-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-extrabold uppercase"
@@ -55,16 +51,24 @@
               </span>
             </div>
 
-            <div class="p-2 bg-white border border-slate-200 rounded-xl">
+            <!-- Kotak NIS Kontras Tinggi untuk Semi-OCR -->
+            <div class="w-full mb-2.5 py-1.5 px-2 rounded-lg border-2 border-slate-900 bg-white">
+              <p class="text-[8px] font-bold uppercase tracking-widest text-slate-500">NIS (Scan OCR)</p>
+              <p class="font-mono text-lg font-black tracking-[0.12em] text-slate-950 leading-tight">
+                {{ student.nis }}
+              </p>
+            </div>
+
+            <div class="p-1.5 bg-white border border-slate-200 rounded-xl">
               <QrcodeVue
                 :value="student.qr_code_token"
-                :size="120"
+                :size="104"
                 level="M"
                 render-as="svg"
               />
             </div>
 
-            <p class="mt-2 font-mono text-[9px] text-slate-400 break-all">
+            <p class="mt-1.5 font-mono text-[8px] text-slate-400 break-all">
               {{ student.qr_code_token }}
             </p>
           </div>

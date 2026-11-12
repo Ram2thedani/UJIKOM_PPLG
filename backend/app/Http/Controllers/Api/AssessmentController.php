@@ -14,8 +14,10 @@ use Illuminate\Validation\ValidationException;
 
 class AssessmentController extends Controller
 {
-    public function show(int $studentId): JsonResponse
+    public function show(Request $request, int $studentId): JsonResponse
     {
+        $user = $request->user();
+
         $student = Student::with([
             'user',
             'schoolClass',
@@ -23,7 +25,29 @@ class AssessmentController extends Controller
             'assessment.details.rubricItem',
         ])->findOrFail($studentId);
 
-        $rubrics = RubricItem::orderBy('item_order')->get();
+        if ($user->role === 'penguji' && ! $user->assignedClasses()->where('classes.id', $student->class_id)->exists()) {
+            return response()->json([
+                'message' => 'Akses ditolak. Siswa ini tidak berada pada kelas yang ditugaskan kepada Anda.',
+            ], 403);
+        }
+
+        $major = $student->schoolClass->major;
+
+        $rubrics = RubricItem::where('major', $major)
+            ->orderBy('page_number')
+            ->orderBy('item_order')
+            ->get();
+
+        $pages = $rubrics->groupBy('page_number')->map(function ($group, $pageNumber) {
+            $num = (int) $pageNumber;
+
+            return [
+                'page_number' => $num,
+                'page_title' => $group->first()?->page_title ?: "Halaman {$num}",
+                'total_weight' => round((float) $group->sum('weight'), 2),
+            ];
+        })->values();
+
         $assessment = $student->assessment;
 
         return response()->json([
@@ -33,6 +57,7 @@ class AssessmentController extends Controller
                 'nis' => $student->nis,
                 'class_id' => $student->class_id,
                 'class_name' => $student->schoolClass->name,
+                'major' => $major,
                 'academic_year' => $student->schoolClass->academic_year,
                 'qr_code_token' => $student->qr_code_token,
                 'is_priority' => $student->is_priority,
@@ -57,6 +82,7 @@ class AssessmentController extends Controller
                     'weight' => $detail->rubricItem?->weight,
                 ])->values(),
             ] : null,
+            'pages' => $pages,
             'rubrics' => $rubrics,
         ]);
     }
@@ -100,13 +126,33 @@ class AssessmentController extends Controller
         ]);
 
         $examiner = $request->user();
-        $rubrics = RubricItem::orderBy('item_order')->get()->keyBy('id');
+        $student = Student::with('schoolClass')->findOrFail($validated['student_id']);
+
+        if ($examiner->role === 'penguji' && ! $examiner->assignedClasses()->where('classes.id', $student->class_id)->exists()) {
+            return response()->json([
+                'message' => 'Akses ditolak. Anda tidak ditugaskan untuk menguji kelas siswa ini.',
+            ], 403);
+        }
+
+        $major = $student->schoolClass->major;
+
+        $rubrics = RubricItem::where('major', $major)
+            ->orderBy('page_number')
+            ->orderBy('item_order')
+            ->get()
+            ->keyBy('id');
+
+        if ($rubrics->isEmpty()) {
+            return response()->json([
+                'message' => "Belum ada rubrik penilaian yang dikonfigurasi untuk jurusan {$major}.",
+            ], 422);
+        }
 
         $submittedScores = collect($validated['scores'])->keyBy('rubric_item_id');
 
         if ($submittedScores->count() !== $rubrics->count()) {
             throw ValidationException::withMessages([
-                'scores' => ['Semua butir rubrik ('.$rubrics->count().' butir) wajib dinilai.'],
+                'scores' => ["Semua butir rubrik jurusan {$major} (".$rubrics->count().' butir) wajib dinilai.'],
             ]);
         }
 
@@ -178,6 +224,11 @@ class AssessmentController extends Controller
                     'submitted_at' => now(),
                 ]);
             }
+
+            // Sinkronkan detail rubrik (hapus jika rubrik jurusan sebelumnya berubah)
+            AssessmentDetail::where('assessment_id', $assessment->id)
+                ->whereNotIn('rubric_item_id', $rubrics->keys()->all())
+                ->delete();
 
             foreach ($detailsPayload as $detail) {
                 AssessmentDetail::updateOrCreate(

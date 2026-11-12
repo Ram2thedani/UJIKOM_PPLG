@@ -1,22 +1,34 @@
 <template>
-  <div class="min-h-screen bg-slate-50">
-    <AppNavbar :subtitle="data?.profile ? `${data.profile.class_name} • NIS ${data.profile.nis}` : 'Dashboard Peserta Ujikom'" />
+  <div class="min-h-screen bg-slate-50 print:bg-white">
+    <AppNavbar :subtitle="data?.profile ? `${data.profile.class_name} (${data.profile.major}) • NIS ${data.profile.nis}` : 'Dashboard Peserta Ujikom'" />
 
-    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-      <div class="flex items-center justify-between gap-3 mb-5">
+    <main class="max-w-5xl mx-auto px-4 sm:px-6 py-6 print:p-0">
+      <div class="no-print flex flex-wrap items-center justify-between gap-3 mb-5">
         <div>
-          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">Kartu & Status Ujikom Saya</h2>
-          <p class="text-sm text-slate-500">Tunjukkan QR Code di bawah ini kepada penguji saat giliran Anda.</p>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-900">Kartu Peserta & Status Ujikom</h2>
+          <p class="text-sm text-slate-500">Tunjukkan Kartu Peserta (NIS / QR Code) kepada penguji saat giliran Anda.</p>
         </div>
-        <button
-          type="button"
-          :disabled="loading"
-          class="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-sm shadow-sm transition active:scale-95"
-          @click="loadDashboard"
-        >
-          <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
-          <span>Muat Ulang</span>
-        </button>
+        <div class="flex items-center gap-2">
+          <button
+            v-if="data"
+            type="button"
+            class="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm shadow-sm transition active:scale-95"
+            @click="printCard"
+          >
+            <Printer class="w-4 h-4" />
+            <span>Cetak Kartu</span>
+          </button>
+
+          <button
+            type="button"
+            :disabled="loading"
+            class="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-semibold text-sm shadow-sm transition active:scale-95"
+            @click="loadDashboard"
+          >
+            <RefreshCw class="w-4 h-4" :class="{ 'animate-spin': loading }" />
+            <span>Muat Ulang</span>
+          </button>
+        </div>
       </div>
 
       <div v-if="loading && !data" class="grid md:grid-cols-2 gap-6">
@@ -24,13 +36,15 @@
         <div class="h-96 rounded-3xl bg-white border border-slate-200 animate-pulse"></div>
       </div>
 
-      <div v-else-if="data" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        <!-- Kartu Ujian Digital (QR Code) -->
-        <section class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-5 text-white">
+      <div v-else-if="data" class="grid grid-cols-1 lg:grid-cols-12 gap-6 print:block">
+        <!-- Kartu Peserta Resmi (Siap Scan Semi-OCR NIS & QR Code) -->
+        <section class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden print:max-w-md print:mx-auto print:border-2 print:border-slate-900 print:shadow-none">
+          <div class="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-5 text-white print:bg-slate-900">
             <div class="flex items-start justify-between gap-2">
               <div>
-                <p class="text-xs font-bold uppercase tracking-wider text-indigo-100">Kartu Ujian Digital</p>
+                <p class="text-xs font-bold uppercase tracking-wider text-indigo-100">
+                  Kartu Peserta Ujikom • {{ data.profile.major }}
+                </p>
                 <h3 class="text-lg font-extrabold mt-0.5 leading-snug">{{ data.profile.name }}</h3>
               </div>
               <span
@@ -43,13 +57,23 @@
             </div>
 
             <div class="mt-3 flex flex-wrap gap-2 text-xs font-semibold">
-              <span class="px-2.5 py-1 rounded-lg bg-white/15">NIS: {{ data.profile.nis }}</span>
               <span class="px-2.5 py-1 rounded-lg bg-white/15">{{ data.profile.class_name }}</span>
+              <span class="px-2.5 py-1 rounded-lg bg-white/15">Jurusan {{ data.profile.major }}</span>
               <span class="px-2.5 py-1 rounded-lg bg-white/15">{{ data.profile.academic_year }}</span>
             </div>
           </div>
 
           <div class="p-6 flex flex-col items-center text-center">
+            <!-- Kotak NIS Kontras Tinggi untuk Semi-OCR Kamera Penguji -->
+            <div class="w-full mb-4 px-4 py-3 rounded-2xl bg-white border-2 border-slate-900 text-center">
+              <p class="text-[10px] font-extrabold uppercase tracking-widest text-slate-500">
+                Nomor Induk Siswa (Scan OCR)
+              </p>
+              <p class="text-3xl font-mono font-black tracking-[0.14em] text-slate-950 mt-0.5 select-all">
+                {{ data.profile.nis }}
+              </p>
+            </div>
+
             <div
               v-if="data.profile.is_priority && data.profile.priority_note"
               class="w-full mb-4 px-3.5 py-2.5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs font-semibold flex items-center gap-2 text-left"
@@ -58,25 +82,24 @@
               <span>Catatan Prioritas: {{ data.profile.priority_note }}</span>
             </div>
 
-            <div class="p-5 bg-white rounded-3xl border-2 border-dashed border-slate-300 shadow-inner">
+            <div class="p-4 bg-white rounded-3xl border-2 border-dashed border-slate-300 shadow-inner">
               <QrcodeVue
                 :value="data.profile.qr_code_token"
-                :size="220"
+                :size="190"
                 level="M"
                 render-as="svg"
               />
             </div>
 
-            <p class="mt-4 text-xs font-semibold text-slate-400 uppercase tracking-wider">Token Peserta</p>
-            <p class="mt-1 font-mono text-xs bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg break-all">
+            <p class="mt-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Token Peserta</p>
+            <p class="mt-1 font-mono text-[11px] bg-slate-100 text-slate-700 px-3 py-1 rounded-lg break-all">
               {{ data.profile.qr_code_token }}
             </p>
           </div>
         </section>
 
-        <!-- Kartu Status Ujikom -->
-        <section class="lg:col-span-7 space-y-5">
-          <!-- Status Utama -->
+        <!-- Kartu Status Ujikom (disembunyikan saat cetak kartu) -->
+        <section class="no-print lg:col-span-7 space-y-5">
           <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
               <h3 class="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -107,11 +130,10 @@
               </span>
             </div>
 
-            <!-- Belum Dinilai -->
             <div v-if="data.assessment.status === 'pending'" class="rounded-2xl bg-slate-50 border border-slate-200 p-5">
               <p class="text-sm text-slate-700 font-medium leading-relaxed">
-                Anda saat ini berada dalam antrean penilaian kelas <strong>{{ data.profile.class_name }}</strong>.
-                Silakan siapkan proyek, database, dan perangkat Anda sebelum dipanggil oleh penguji.
+                Anda saat ini berada dalam antrean penilaian kelas <strong>{{ data.profile.class_name }}</strong> ({{ data.profile.major }}).
+                Silakan siapkan perlengkapan dan tunjukkan Kartu Peserta ini saat dipanggil oleh penguji.
               </p>
               <div class="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div class="bg-white rounded-xl p-3 border border-slate-200">
@@ -135,7 +157,6 @@
               </div>
             </div>
 
-            <!-- Sudah Dinilai -->
             <div v-else class="space-y-5">
               <div
                 class="rounded-2xl p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border"
@@ -173,7 +194,6 @@
                 </div>
               </div>
 
-              <!-- Quick Tags -->
               <div v-if="data.assessment.quick_tags?.length">
                 <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                   Tag Evaluasi Penguji
@@ -194,7 +214,6 @@
                 </div>
               </div>
 
-              <!-- Catatan Perbaikan / Penguji -->
               <div>
                 <p class="text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">
                   Catatan Perbaikan / Masukan Penguji
@@ -206,7 +225,6 @@
             </div>
           </div>
 
-          <!-- Rincian Nilai Per Rubrik -->
           <div
             v-if="data.assessment.status !== 'pending' && data.assessment.details?.length"
             class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6"
@@ -253,6 +271,7 @@ import {
   Award,
   CheckCircle2,
   Clock,
+  Printer,
   RefreshCw,
   Star,
 } from 'lucide-vue-next'
@@ -275,6 +294,10 @@ async function loadDashboard() {
   } finally {
     loading.value = false
   }
+}
+
+function printCard() {
+  window.print()
 }
 
 onMounted(loadDashboard)

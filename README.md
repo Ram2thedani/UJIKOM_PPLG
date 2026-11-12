@@ -5,7 +5,7 @@ Aplikasi web full-stack untuk manajemen dan penilaian Uji Kompetensi Keahlian (U
 ## Tech Stack
 - **Backend**: Laravel 13 (PHP 8.3+), Laravel Sanctum, Role Middleware, MySQL
 - **Frontend**: Vue 3 (Composition API), Vite, Pinia, Vue Router (Navigation Guards), Tailwind CSS
-- **Library Frontend**: `html5-qrcode`, `qrcode.vue`, `lucide-vue-next`, `xlsx` (SheetJS), `axios`
+- **Library Frontend**: `tesseract.js` (Semi-OCR NIS), `html5-qrcode`, `qrcode.vue`, `lucide-vue-next`, `xlsx` (SheetJS), `axios`
 
 ---
 
@@ -142,9 +142,11 @@ ujikom-pplg/
 
 | Role | Email / NIS (Username) | Password | Keterangan |
 | :--- | :--- | :--- | :--- |
-| **Admin** | `admin@ujikom.sch.id` | `admin123` | Akses penuh monitoring, CRUD siswa/penguji, rubrik, cetak QR, ekspor Excel |
-| **Penguji** | `penguji@ujikom.sch.id` | `penguji123` | PIN Revisi 6-Digit: `123456` |
-| **Siswa (36 Akun)** | `24251001` s/d `24251036` | Sama dengan NIS (cth: `24251001`) | 3 siswa ditandai Prioritas (`24251001`, `24251005`, `24251012`) |
+| **Admin** | `admin@ujikom.sch.id` | `admin123` | Akses penuh monitoring, kelas/jurusan (PPLG & TMS), penguji, rubrik dinamis, cetak kartu, ekspor Excel |
+| **Penguji PPLG** | `penguji@ujikom.sch.id` | `penguji123` | Ditugaskan ke `XII PPLG 1` • PIN Revisi 6-Digit: `123456` |
+| **Penguji TMS** | `penguji.tms@ujikom.sch.id` | `penguji123` | Ditugaskan ke `XII TMS 1` • PIN Revisi 6-Digit: `123456` |
+| **Siswa PPLG (36)** | `24251001` s/d `24251036` | Sama dengan NIS | 3 siswa Prioritas (`24251001`, `24251005`, `24251012`) |
+| **Siswa TMS (6)** | `24252001` s/d `24252006` | Sama dengan NIS | 1 siswa Prioritas (`24252001`) |
 
 > Anda juga dapat langsung menggunakan **Tombol Demo Login Cepat (1-Klik)** pada halaman `/login`.
 
