@@ -193,6 +193,8 @@
     <!-- Modals -->
     <QrScannerModal
       :open="scannerOpen"
+      :students="students"
+      :lookup-student="lookupStudentByNis"
       @close="scannerOpen = false"
       @scanned="handleQrScanned"
     />
@@ -295,7 +297,10 @@ const filteredStudents = computed(() => {
     }
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase()
-      return s.name.toLowerCase().includes(q) || s.nis.toLowerCase().includes(q)
+      return (
+        String(s.name ?? '').toLowerCase().includes(q) ||
+        String(s.nis ?? '').toLowerCase().includes(q)
+      )
     }
     return true
   })
@@ -372,6 +377,19 @@ function handleSelectStudent(student) {
   router.push({ name: 'penguji.assess', params: { studentId: student.id } })
 }
 
+// Dipakai QrScannerModal untuk menampilkan nama siswa (tanpa terikat kelas).
+// Memakai endpoint yang sama dengan handleQrScanned.
+// Return null kalau siswa tidak ada (404) supaya hasilnya di-cache di modal.
+async function lookupStudentByNis(nis) {
+  try {
+    const { data } = await api.get(`/students/scan/${encodeURIComponent(nis)}`)
+    return data.student ?? null
+  } catch (err) {
+    if (err.response?.status === 404) return null
+    throw err
+  }
+}
+
 async function handleQrScanned(qrToken) {
   scannerOpen.value = false
   try {
@@ -382,7 +400,7 @@ async function handleQrScanned(qrToken) {
       guardedStudent.value = scannedStudent
       guardModalOpen.value = true
     } else {
-      toast.success(`QR terverifikasi: ${scannedStudent.name}`)
+      toast.success(`Siswa terverifikasi: ${scannedStudent.name}`)
       router.push({ name: 'penguji.assess', params: { studentId: scannedStudent.id } })
     }
   } catch (err) {
