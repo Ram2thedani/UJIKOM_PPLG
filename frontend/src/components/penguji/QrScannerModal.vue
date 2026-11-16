@@ -39,9 +39,31 @@
                 v-if="!ocrCameraError"
                 class="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-4"
               >
-                <div class="w-[88%] sm:w-[75%] aspect-[1.58/1] rounded-2xl border-2 border-emerald-400/90 shadow-[0_0_0_9999px_rgba(15,23,42,0.6)] flex items-end justify-center pb-3">
-                  <span class="px-3 py-1 rounded-full bg-emerald-500/95 text-white text-[11px] sm:text-xs font-extrabold tracking-wide shadow-md">
-                    {{ ocrProcessing ? 'Mengenali kartu...' : 'Posisikan Seluruh Kartu di Dalam Bingkai' }}
+                <div
+                  class="relative overflow-hidden w-[88%] sm:w-[75%] aspect-[1.58/1] rounded-2xl border-2 shadow-[0_0_0_9999px_rgba(15,23,42,0.6)] flex items-end justify-center pb-3 transition-colors duration-300"
+                  :class="scanPhase === 'searching' ? 'border-white/70' : 'border-emerald-400'"
+                >
+                  <!-- Garis pindai saat menunggu kartu -->
+                  <div v-if="scanPhase === 'searching' || scanPhase === 'steady'" class="scan-line"></div>
+
+                  <!-- Loader saat kartu dibaca -->
+                  <div
+                    v-if="scanPhase === 'reading'"
+                    class="absolute inset-0 bg-slate-900/55 flex items-center justify-center"
+                  >
+                    <div class="w-12 h-12 rounded-full border-4 border-white/25 border-t-emerald-400 animate-spin"></div>
+                  </div>
+
+                  <!-- Berhasil -->
+                  <div
+                    v-else-if="scanPhase === 'success'"
+                    class="absolute inset-0 bg-emerald-500/25 flex items-center justify-center"
+                  >
+                    <CheckCircle2 class="w-14 h-14 text-emerald-300 drop-shadow" />
+                  </div>
+
+                  <span class="relative px-3 py-1 rounded-full bg-emerald-500/95 text-white text-[11px] sm:text-xs font-extrabold tracking-wide shadow-md">
+                    {{ statusLabel }}
                   </span>
                 </div>
               </div>
@@ -183,6 +205,8 @@ const ocrCameraError = ref('')
 const ocrProcessing = ref(false)
 const ocrRawText = ref('')
 const ocrCandidates = ref([])
+const ocrSuccess = ref(false)
+const cardSteady = ref(false)
 let mediaStream = null
 let ocrInterval = null
 let ocrBusy = false
@@ -190,6 +214,39 @@ let ocrWorkerPromise = null
 let lastHit = { nis: null, count: 0 }
 let scanCycle = 0
 let autoSubmitTimer = null
+
+// Auto capture: ambil gambar otomatis saat kartu terdeteksi diam di dalam bingkai
+const SCAN_INTERVAL_MS = 350 // seberapa sering frame dicek
+const STEADY_FRAMES_NEEDED = 3 // jumlah cek berturut-turut yang stabil (~1 detik)
+const MOTION_MAX = 7 // batas selisih piksel antar-frame (makin kecil = harus makin diam)
+const EDGE_MIN = 0.05 // batas minimal kerapatan tepi (membedakan kartu dari meja kosong)
+const RETRY_COOLDOWN_MS = 1500 // jeda sebelum mencoba lagi setelah gagal membaca
+const SAMPLE_W = 96
+const SAMPLE_H = 60
+let sampleCanvas = null
+let prevFrame = null
+let steadyCount = 0
+let cooldownUntil = 0
+
+const scanPhase = computed(() => {
+  if (ocrSuccess.value) return 'success'
+  if (ocrProcessing.value) return 'reading'
+  if (cardSteady.value) return 'steady'
+  return 'searching'
+})
+
+const statusLabel = computed(() => {
+  switch (scanPhase.value) {
+    case 'success':
+      return 'Kartu terbaca'
+    case 'reading':
+      return 'Membaca kartu...'
+    case 'steady':
+      return 'Tahan sebentar...'
+    default:
+      return 'Posisikan Seluruh Kartu di Dalam Bingkai'
+  }
+})
 
 // ---------- Helper pencocokan ----------
 
@@ -379,20 +436,82 @@ function stopScanLoops() {
     clearInterval(ocrInterval)
     ocrInterval = null
   }
+  prevFrame = null
+  steadyCount = 0
+  cardSteady.value = false
+}
+
+// Ambil versi kecil (grayscale) dari area bingkai untuk deteksi kartu diam
+function sampleGuideArea() {
+  const video = videoRef.value
+  if (!video || !video.videoWidth) return null
+
+  const vw = video.videoWidth
+  const vh = video.videoHeight
+  const cropW = Math.round(vw * 0.8)
+  const cropH = Math.round(cropW / 1.58)
+  const cropX = Math.round((vw - cropW) / 2)
+  const cropY = Math.round((vh - cropH) / 2)
+
+  if (!sampleCanvas) {
+    sampleCanvas = document.createElement('canvas')
+    sampleCanvas.width = SAMPLE_W
+    sampleCanvas.height = SAMPLE_H
+  }
+  const ctx = sampleCanvas.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, SAMPLE_W, SAMPLE_H)
+  const { data } = ctx.getImageData(0, 0, SAMPLE_W, SAMPLE_H)
+
+  const gray = new Uint8Array(SAMPLE_W * SAMPLE_H)
+  for (let i = 0, j = 0; i < gray.length; i++, j += 4) {
+    gray[i] = (data[j] * 299 + data[j + 1] * 587 + data[j + 2] * 114) / 1000
+  }
+  return gray
+}
+
+function analyzeFrames(cur, prev) {
+  let diff = 0
+  let edges = 0
+  for (let i = 0; i < cur.length; i++) {
+    diff += Math.abs(cur[i] - prev[i])
+    if (i % SAMPLE_W < SAMPLE_W - 1 && Math.abs(cur[i] - cur[i + 1]) > 25) edges++
+  }
+  return { motion: diff / cur.length, edgeRatio: edges / cur.length }
+}
+
+async function scanTick() {
+  if (ocrBusy || ocrSuccess.value) return
+  const frame = sampleGuideArea()
+  if (!frame) return
+
+  const prev = prevFrame
+  prevFrame = frame
+  if (!prev) return
+
+  const { motion, edgeRatio } = analyzeFrames(frame, prev)
+  if (motion < MOTION_MAX && edgeRatio > EDGE_MIN) steadyCount++
+  else steadyCount = 0
+  cardSteady.value = steadyCount > 0
+
+  if (steadyCount >= STEADY_FRAMES_NEEDED && Date.now() >= cooldownUntil) {
+    steadyCount = 0
+    cardSteady.value = false
+    await captureAndRunOcr()
+    cooldownUntil = Date.now() + RETRY_COOLDOWN_MS
+    prevFrame = null
+  }
 }
 
 function startScanLoops() {
   stopScanLoops()
   lastHit = { nis: null, count: 0 }
-
-  ocrInterval = setInterval(async () => {
-    if (ocrBusy || !videoRef.value || !videoRef.value.videoWidth) return
-    await captureAndRunOcr()
-  }, 2500)
+  cooldownUntil = 0
+  ocrInterval = setInterval(scanTick, SCAN_INTERVAL_MS)
 }
 
 async function startOcrCamera() {
   ocrCameraError.value = ''
+  ocrSuccess.value = false
   stopOcrCamera()
   await nextTick()
 
@@ -479,6 +598,7 @@ function preprocessCanvas(canvas) {
 function acceptStudent(nis, candidates) {
   manualToken.value = nis
   ocrCandidates.value = candidates
+  ocrSuccess.value = true
   stopScanLoops()
   toast.success(`Siswa terdeteksi: ${getStudentNameByNis(nis) || nis}`)
 
@@ -601,7 +721,14 @@ async function captureAndRunOcr() {
   const ctx = canvas.getContext('2d')
   ctx.drawImage(video, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height)
 
+  // Bekukan gambar selama membaca supaya siswa tahu kartunya sudah "diambil"
+  video.pause()
   await runOcrOnCanvas(canvas, false)
+
+  // Gagal baca: lanjutkan video agar siswa bisa menyesuaikan posisi kartu
+  if (!ocrSuccess.value && props.open && videoRef.value && mediaStream) {
+    videoRef.value.play().catch(() => {})
+  }
 }
 
 async function handleOcrFileUpload(event) {
@@ -641,6 +768,8 @@ function resetState() {
   clearTimeout(lookupTimer)
   clearTimeout(autoSubmitTimer)
   autoSubmitTimer = null
+  ocrSuccess.value = false
+  cardSteady.value = false
   lookingUp.value = false
   manualToken.value = ''
   ocrRawText.value = ''
@@ -678,3 +807,33 @@ onBeforeUnmount(() => {
   stopAllCameras()
 })
 </script>
+
+<style scoped>
+.scan-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 4%;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.95), transparent);
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.8);
+  animation: scan-sweep 2s ease-in-out infinite;
+}
+
+@keyframes scan-sweep {
+  0%,
+  100% {
+    top: 4%;
+  }
+  50% {
+    top: 94%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line {
+    animation: none;
+    top: 50%;
+  }
+}
+</style>
