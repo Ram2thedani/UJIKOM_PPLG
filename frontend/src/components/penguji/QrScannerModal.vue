@@ -157,6 +157,16 @@ const props = defineProps({
     type: Function,
     default: null,
   },
+  // Eksperimen: otomatis "klik" tombol Cari Siswa begitu satu siswa terdeteksi
+  autoSubmit: {
+    type: Boolean,
+    default: true,
+  },
+  // Jeda (ms) sebelum auto-submit, supaya nama siswa sempat terlihat
+  autoSubmitDelay: {
+    type: Number,
+    default: 700,
+  },
 })
 
 const emit = defineEmits(['close', 'scanned'])
@@ -179,6 +189,7 @@ let ocrBusy = false
 let ocrWorkerPromise = null
 let lastHit = { nis: null, count: 0 }
 let scanCycle = 0
+let autoSubmitTimer = null
 
 // ---------- Helper pencocokan ----------
 
@@ -470,6 +481,16 @@ function acceptStudent(nis, candidates) {
   ocrCandidates.value = candidates
   stopScanLoops()
   toast.success(`Siswa terdeteksi: ${getStudentNameByNis(nis) || nis}`)
+
+  if (props.autoSubmit) {
+    clearTimeout(autoSubmitTimer)
+    autoSubmitTimer = setTimeout(() => {
+      autoSubmitTimer = null
+      // Batalkan jika modal sudah ditutup atau NIS diubah manual selama jeda
+      if (!props.open || manualToken.value !== nis) return
+      submitManual()
+    }, props.autoSubmitDelay)
+  }
 }
 
 // single = true untuk upload foto (satu kali baca, tanpa konfirmasi 2 frame)
@@ -618,6 +639,8 @@ async function stopAllCameras() {
 
 function resetState() {
   clearTimeout(lookupTimer)
+  clearTimeout(autoSubmitTimer)
+  autoSubmitTimer = null
   lookingUp.value = false
   manualToken.value = ''
   ocrRawText.value = ''
@@ -650,5 +673,8 @@ watch(
   }
 )
 
-onBeforeUnmount(stopAllCameras)
+onBeforeUnmount(() => {
+  clearTimeout(autoSubmitTimer)
+  stopAllCameras()
+})
 </script>
