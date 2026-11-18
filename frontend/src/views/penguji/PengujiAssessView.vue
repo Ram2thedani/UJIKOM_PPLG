@@ -161,7 +161,13 @@
               :key="oa.id"
               class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 font-semibold text-xs"
             >
-              <span>{{ oa.examiner_name }}:</span>
+              <span>{{ oa.examiner_name }}</span>
+              <span
+                class="px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase"
+                :class="oa.examiner_type === 'eksternal' ? 'bg-teal-100 text-teal-800' : 'bg-indigo-100 text-indigo-800'"
+              >
+                {{ oa.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+              </span>
               <strong :class="oa.status === 'kompeten' ? 'text-emerald-700' : 'text-rose-700'">
                 {{ Number(oa.final_score).toFixed(2) }}
               </strong>

@@ -183,7 +183,20 @@
               </template>
 
               <template #cell-name="{ row }">
-                <p class="font-bold text-slate-800">{{ row.name }}</p>
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <p class="font-bold text-slate-800">{{ row.name }}</p>
+                  <span
+                    v-if="row.role === 'penguji'"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase"
+                    :class="
+                      row.examiner_type === 'eksternal'
+                        ? 'bg-teal-100 text-teal-800'
+                        : 'bg-indigo-100 text-indigo-800'
+                    "
+                  >
+                    {{ row.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+                  </span>
+                </div>
                 <p class="text-xs text-slate-400">{{ row.username }}</p>
               </template>
 
@@ -340,6 +353,22 @@
               </span>
             </template>
 
+            <template #cell-examiner_name="{ row }">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-semibold text-slate-800">{{ row.examiner_name }}</span>
+                <span
+                  class="px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase"
+                  :class="
+                    row.examiner_type === 'eksternal'
+                      ? 'bg-teal-100 text-teal-800'
+                      : 'bg-indigo-100 text-indigo-800'
+                  "
+                >
+                  {{ row.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+                </span>
+              </div>
+            </template>
+
             <template #cell-final_score="{ row }">
               <span class="font-black">{{ formatScore(row.final_score) }}</span>
             </template>
@@ -406,9 +435,17 @@
               <span
                 v-for="ex in row.examiners"
                 :key="ex.id"
-                class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold"
+                class="px-2 py-0.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                :class="
+                  ex.examiner_type === 'eksternal'
+                    ? 'bg-teal-50 text-teal-800 border border-teal-200'
+                    : 'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                "
               >
-                {{ ex.name }}
+                <span>{{ ex.name }}</span>
+                <span class="text-[10px] font-extrabold uppercase opacity-80">
+                  ({{ ex.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }})
+                </span>
               </span>
             </div>
             <span v-else class="text-xs text-rose-500 font-semibold">Belum ada penguji</span>
@@ -592,6 +629,19 @@
         >
           <template #cell-name="{ row }">
             <span class="font-bold text-slate-900">{{ row.name }}</span>
+          </template>
+
+          <template #cell-examiner_type="{ row }">
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
+              :class="
+                row.examiner_type === 'eksternal'
+                  ? 'bg-teal-100 text-teal-800'
+                  : 'bg-indigo-100 text-indigo-800'
+              "
+            >
+              {{ row.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+            </span>
           </template>
 
           <template #cell-email="{ row }">
@@ -832,6 +882,11 @@
           </div>
         </div>
       </section>
+
+      <!-- TAB 6: LAPORAN NILAI (PDF & WORD) PER SISWA / PER KELAS / JURUSAN -->
+      <section v-if="activeTab === 'reports'">
+        <AdminReportSection :classes="classes" />
+      </section>
     </main>
 
     <!-- Modals -->
@@ -878,6 +933,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   Activity,
   FileSpreadsheet,
+  FileText,
   FolderKanban,
   ListChecks,
   Loader2,
@@ -895,6 +951,7 @@ import {
 import AppNavbar from '@/components/AppNavbar.vue'
 import AppSelect from '@/components/AppSelect.vue'
 import AdminDataTable from '@/components/admin/AdminDataTable.vue'
+import AdminReportSection from '@/components/admin/AdminReportSection.vue'
 import ClassFormModal from '@/components/admin/ClassFormModal.vue'
 import StudentFormModal from '@/components/admin/StudentFormModal.vue'
 import StudentImportModal from '@/components/admin/StudentImportModal.vue'
@@ -909,6 +966,7 @@ const toast = useToast()
 
 const tabs = [
   { key: 'monitoring', label: 'Monitoring & Ekspor', icon: Activity },
+  { key: 'reports', label: 'Laporan (PDF / Word)', icon: FileText },
   { key: 'classes', label: 'Kelas & Jurusan', icon: FolderKanban },
   { key: 'students', label: 'Siswa & Cetak Kartu', icon: Users },
   { key: 'examiners', label: 'Akun Penguji', icon: UserCog },
@@ -1017,15 +1075,18 @@ const examinerProgressColumns = [
 ]
 
 const recapTableColumns = computed(() => {
-  const dynamicExaminerCols = (recapData.value?.examiners || []).map((ex, idx) => ({
-    key: `examiner_${ex.id}`,
-    label: `P${idx + 1}: ${ex.name}`,
-    align: 'center',
-    accessor: (row) => {
-      const score = row.examiner_scores?.[ex.id]?.final_score
-      return score !== null && score !== undefined ? Number(score).toFixed(2) : '-'
-    },
-  }))
+  const dynamicExaminerCols = (recapData.value?.examiners || []).map((ex, idx) => {
+    const typeLabel = ex.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal'
+    return {
+      key: `examiner_${ex.id}`,
+      label: `P${idx + 1}: ${ex.name} (${typeLabel})`,
+      align: 'center',
+      accessor: (row) => {
+        const score = row.examiner_scores?.[ex.id]?.final_score
+        return score !== null && score !== undefined ? Number(score).toFixed(2) : '-'
+      },
+    }
+  })
 
   return [
     { key: 'nis', label: 'NIS' },
@@ -1170,6 +1231,12 @@ const studentsTableColumns = [
 
 const examinersTableColumns = [
   { key: 'name', label: 'Nama Penguji' },
+  {
+    key: 'examiner_type',
+    label: 'Jenis Penguji',
+    align: 'center',
+    accessor: (r) => (r.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal'),
+  },
   { key: 'email', label: 'Email / Username', accessor: (r) => r.email || r.username },
   {
     key: 'assigned_classes',

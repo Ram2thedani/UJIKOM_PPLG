@@ -27,6 +27,7 @@ export function exportAssessmentExcel(exportPayload) {
 
   // 1. Buat Sheet untuk setiap Penguji (Data nilai per masing-masing penguji)
   examiners.forEach((examiner, exIdx) => {
+    const typeLabel = examiner.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal'
     const examinerSheetRows = rows.map((row, index) => {
       const exAssessment = row.examiner_scores?.[examiner.id] || null
 
@@ -39,6 +40,7 @@ export function exportAssessmentExcel(exportPayload) {
         'Tahun Ajaran': row.academic_year,
         Prioritas: row.is_priority ? `Ya (${row.priority_note || '-'})` : 'Tidak',
         'Nama Penguji': examiner.name,
+        'Jenis Penguji': typeLabel,
         'Status (Penguji Ini)': exAssessment
           ? exAssessment.status === 'kompeten'
             ? 'KOMPETEN'
@@ -91,7 +93,7 @@ export function exportAssessmentExcel(exportPayload) {
     ]
 
     const sheetTitle = getUniqueSheetName(
-      `P${exIdx + 1}_${examiner.name}`,
+      `P${exIdx + 1}_${typeLabel}_${examiner.name}`,
       `Penguji_${exIdx + 1}`
     )
     XLSX.utils.book_append_sheet(wb, wsExaminer, sheetTitle)
@@ -133,8 +135,9 @@ export function exportAssessmentExcel(exportPayload) {
     }
 
     examiners.forEach((examiner, exIdx) => {
+      const typeLabel = examiner.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal'
       const exScore = row.examiner_scores?.[examiner.id]?.final_score
-      base[`Nilai P${exIdx + 1} (${examiner.name})`] =
+      base[`Nilai P${exIdx + 1} - ${examiner.name} (${typeLabel})`] =
         exScore !== null && exScore !== undefined ? Number(exScore) : '-'
     })
 

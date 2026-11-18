@@ -102,6 +102,7 @@ class AdminDashboardController extends Controller
                 'name' => $examiner->name,
                 'username' => $examiner->username,
                 'role' => $examiner->role,
+                'examiner_type' => $examiner->role === 'penguji' ? ($examiner->examiner_type ?: 'internal') : 'admin',
                 'assigned_classes' => $examiner->assignedClasses->map(fn ($c) => $c->name)->values(),
                 'total_graded' => $count,
                 'kompeten_count' => $assessments->where('status', 'kompeten')->count(),
@@ -124,6 +125,7 @@ class AdminDashboardController extends Controller
                 'class_name' => $a->student->schoolClass->name,
                 'major' => $a->student->schoolClass->major,
                 'examiner_name' => $a->examiner->name,
+                'examiner_type' => $a->examiner->examiner_type ?: 'internal',
                 'final_score' => $a->final_score,
                 'status' => $a->status,
                 'revision_count' => $a->revision_count,
@@ -157,13 +159,13 @@ class AdminDashboardController extends Controller
     {
         $query = Student::with([
             'user',
-            'schoolClass.examiners:id,name,username',
-            'assessments.examiner:id,name,username',
+            'schoolClass.examiners:id,name,username,examiner_type',
+            'assessments.examiner:id,name,username,examiner_type',
             'assessments.details',
         ])->orderBy('class_id')->orderBy('nis');
 
         if ($classId !== 'all') {
-            $schoolClass = SchoolClass::with('examiners:id,name,username')->findOrFail((int) $classId);
+            $schoolClass = SchoolClass::with('examiners:id,name,username,examiner_type')->findOrFail((int) $classId);
             $query->where('class_id', $schoolClass->id);
             $major = $schoolClass->major;
             $classInfo = [
@@ -182,7 +184,7 @@ class AdminDashboardController extends Controller
                 'major' => $major,
                 'academic_year' => '',
             ];
-            $assignedExaminers = SchoolClass::with('examiners:id,name,username')
+            $assignedExaminers = SchoolClass::with('examiners:id,name,username,examiner_type')
                 ->where('major', $major)
                 ->get()
                 ->flatMap(fn (SchoolClass $c) => $c->examiners)
@@ -211,6 +213,7 @@ class AdminDashboardController extends Controller
                 'id' => $u->id,
                 'name' => $u->name,
                 'username' => $u->username,
+                'examiner_type' => $u->examiner_type ?: 'internal',
             ])->values();
 
         $rows = $students->map(function (Student $student) use ($rubrics, $examiners) {
@@ -288,6 +291,36 @@ class AdminDashboardController extends Controller
                 ->filter()
                 ->implode(', ');
 
+            $classExaminers = $student->schoolClass->examiners;
+
+            $internalNames = $gradedAssessments
+                ->map(fn (Assessment $a) => $a->examiner)
+                ->filter(fn ($u) => $u && ($u->examiner_type ?: 'internal') === 'internal')
+                ->pluck('name')
+                ->unique()
+                ->values();
+
+            if ($internalNames->isEmpty()) {
+                $internalNames = $classExaminers
+                    ->filter(fn ($u) => ($u->examiner_type ?: 'internal') === 'internal')
+                    ->pluck('name')
+                    ->values();
+            }
+
+            $externalNames = $gradedAssessments
+                ->map(fn (Assessment $a) => $a->examiner)
+                ->filter(fn ($u) => $u && $u->examiner_type === 'eksternal')
+                ->pluck('name')
+                ->unique()
+                ->values();
+
+            if ($externalNames->isEmpty()) {
+                $externalNames = $classExaminers
+                    ->filter(fn ($u) => $u->examiner_type === 'eksternal')
+                    ->pluck('name')
+                    ->values();
+            }
+
             return [
                 'student_id' => $student->id,
                 'nis' => $student->nis,
@@ -304,6 +337,8 @@ class AdminDashboardController extends Controller
                 'final_score' => $totalHasil,
                 'status' => $finalStatus,
                 'examiner_name' => $examinerNames ?: null,
+                'internal_examiners' => $internalNames,
+                'external_examiners' => $externalNames,
                 'quick_tags' => $combinedTags,
                 'examiner_note' => $combinedNotes ?: null,
                 'duration_seconds' => (int) $gradedAssessments->sum('duration_seconds'),

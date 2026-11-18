@@ -204,9 +204,9 @@
               </div>
 
               <!-- Rincian Nilai per Masing-Masing Penguji -->
-              <div v-if="data.assessment.examiner_assessments?.length > 1" class="space-y-2">
+              <div v-if="data.assessment.examiner_assessments?.length" class="space-y-2">
                 <p class="text-xs font-bold uppercase tracking-wider text-slate-500">
-                  Nilai dari Masing-Masing Penguji
+                  Nilai dari Masing-Masing Penguji (Digabung &amp; Dirata-rata)
                 </p>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   <div
@@ -215,8 +215,20 @@
                     class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between"
                   >
                     <div>
-                      <p class="text-xs font-bold text-slate-400">Penguji {{ idx + 1 }}</p>
-                      <p class="text-sm font-extrabold text-slate-800">{{ ea.examiner_name }}</p>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-bold text-slate-400">Penguji {{ idx + 1 }}</span>
+                        <span
+                          class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase"
+                          :class="
+                            ea.examiner_type === 'eksternal'
+                              ? 'bg-teal-100 text-teal-800'
+                              : 'bg-indigo-100 text-indigo-800'
+                          "
+                        >
+                          {{ ea.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+                        </span>
+                      </div>
+                      <p class="text-sm font-extrabold text-slate-800 mt-0.5">{{ ea.examiner_name }}</p>
                     </div>
                     <span
                       class="text-lg font-black"

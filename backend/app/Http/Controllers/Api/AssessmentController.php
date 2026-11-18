@@ -59,6 +59,7 @@ class AssessmentController extends Controller
                 'id' => $a->id,
                 'examiner_id' => $a->examiner_id,
                 'examiner_name' => $a->examiner?->name,
+                'examiner_type' => $a->examiner?->examiner_type ?: 'internal',
                 'final_score' => $a->final_score,
                 'status' => $a->status,
                 'submitted_at' => $a->submitted_at?->toIso8601String(),

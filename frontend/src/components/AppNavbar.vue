@@ -18,7 +18,7 @@
               class="px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-full"
               :class="roleBadgeClass"
             >
-              {{ auth.userRole }}
+              {{ roleDisplayText }}
             </span>
           </div>
           <p class="text-xs text-slate-500 truncate">{{ subtitle || auth.user?.name }}</p>
@@ -79,12 +79,22 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 
+const roleDisplayText = computed(() => {
+  if (auth.userRole === 'penguji') {
+    const type = auth.user?.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal'
+    return `Penguji ${type}`
+  }
+  return auth.userRole
+})
+
 const roleBadgeClass = computed(() => {
   switch (auth.userRole) {
     case 'admin':
       return 'bg-purple-100 text-purple-700'
     case 'penguji':
-      return 'bg-indigo-100 text-indigo-700'
+      return auth.user?.examiner_type === 'eksternal'
+        ? 'bg-teal-100 text-teal-800'
+        : 'bg-indigo-100 text-indigo-700'
     default:
       return 'bg-emerald-100 text-emerald-700'
   }
