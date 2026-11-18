@@ -7,23 +7,19 @@
       <section class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4 sm:p-5">
         <div class="flex flex-col lg:flex-row lg:items-center gap-3.5">
           <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 flex-1">
-            <!-- Filter Kelas -->
+            <!-- Filter Kelas (Custom Combobox AppSelect) -->
             <div class="sm:col-span-4">
               <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                Pilih Kelas
+                Pilih Kelas Tugas
               </label>
-              <select
+              <AppSelect
                 v-model="selectedClassId"
-                class="w-full min-h-[48px] px-3.5 rounded-2xl border border-slate-300 bg-slate-50 focus:bg-white focus:border-indigo-500 outline-none font-semibold text-sm text-slate-800"
+                size="lg"
+                :options="classSelectOptions"
+                placeholder="Belum ada kelas yang ditugaskan"
+                :disabled="classes.length === 0"
                 @change="loadQueue"
-              >
-                <option v-if="classes.length === 0" :value="null" disabled>
-                  Belum ada kelas yang ditugaskan
-                </option>
-                <option v-for="cls in classes" :key="cls.id" :value="cls.id">
-                  {{ cls.name }} [{{ cls.major }}] ({{ cls.academic_year }})
-                </option>
-              </select>
+              />
             </div>
 
             <!-- Search Bar -->
@@ -147,12 +143,21 @@
                 {{ student.nis }}
               </span>
 
-              <span
-                class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide"
-                :class="statusBadgeClass(student.queue_status)"
-              >
-                {{ statusLabel(student.queue_status) }}
-              </span>
+              <div class="flex items-center gap-1.5">
+                <span
+                  v-if="student.total_examiners_assigned > 1 || student.graded_by_count > 0"
+                  class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800"
+                  title="Jumlah penguji yang sudah menilai siswa ini"
+                >
+                  {{ student.graded_by_count }}/{{ student.total_examiners_assigned }} Penguji
+                </span>
+                <span
+                  class="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold uppercase tracking-wide"
+                  :class="statusBadgeClass(student.queue_status)"
+                >
+                  {{ statusLabel(student.queue_status) }}
+                </span>
+              </div>
             </div>
 
             <h3 class="font-extrabold text-slate-900 text-sm sm:text-base leading-snug line-clamp-2">
@@ -162,9 +167,17 @@
 
           <div class="w-full mt-3 pt-2.5 border-t border-black/10 flex items-center justify-between gap-2">
             <template v-if="student.already_graded">
-              <span class="text-xs font-semibold text-slate-600 truncate">
-                Nilai Akhir
-              </span>
+              <div class="min-w-0">
+                <span class="block text-xs font-semibold text-slate-600 truncate">
+                  Nilai Anda
+                </span>
+                <span
+                  v-if="student.graded_by_count > 1"
+                  class="block text-[10px] font-bold text-indigo-700 truncate"
+                >
+                  Rata2 ({{ student.graded_by_count }}P): {{ formatScore(student.total_hasil) }}
+                </span>
+              </div>
               <span
                 class="text-lg font-black"
                 :class="student.queue_status === 'kompeten' ? 'text-emerald-700' : 'text-rose-700'"
@@ -212,6 +225,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ChevronRight, QrCode, RefreshCw, Search, Star, Users } from 'lucide-vue-next'
 import AppNavbar from '@/components/AppNavbar.vue'
+import AppSelect from '@/components/AppSelect.vue'
 import QrScannerModal from '@/components/penguji/QrScannerModal.vue'
 import DoubleGradingModal from '@/components/penguji/DoubleGradingModal.vue'
 import api from '@/services/api'
@@ -244,6 +258,16 @@ const progressPercent = computed(() => {
   if (!stats.value.total) return 0
   return Math.round((stats.value.graded / stats.value.total) * 100)
 })
+
+const classSelectOptions = computed(() =>
+  classes.value.map((cls) => ({
+    value: cls.id,
+    label: cls.name,
+    badge: cls.major,
+    badgeClass: cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800',
+    sublabel: `Tahun Ajaran ${cls.academic_year} • ${cls.students_count || 0} Siswa`,
+  }))
+)
 
 const filterPills = computed(() => [
   {

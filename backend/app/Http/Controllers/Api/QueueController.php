@@ -14,7 +14,7 @@ class QueueController extends Controller
     {
         $user = $request->user();
 
-        $query = SchoolClass::withCount('students')
+        $query = SchoolClass::withCount(['students', 'examiners'])
             ->orderBy('major')
             ->orderBy('name');
 
@@ -31,7 +31,7 @@ class QueueController extends Controller
     public function classQueue(Request $request, int $id): JsonResponse
     {
         $user = $request->user();
-        $schoolClass = SchoolClass::findOrFail($id);
+        $schoolClass = SchoolClass::with('examiners:id,name')->findOrFail($id);
 
         if ($user->role === 'penguji' && ! $user->assignedClasses()->where('classes.id', $schoolClass->id)->exists()) {
             return response()->json([
@@ -39,17 +39,26 @@ class QueueController extends Controller
             ], 403);
         }
 
-        $students = Student::with(['user', 'schoolClass', 'assessment.examiner'])
+        $totalAssignedExaminers = max(1, $schoolClass->examiners->count());
+
+        $students = Student::with(['user', 'schoolClass', 'assessments.examiner'])
             ->where('class_id', $schoolClass->id)
             ->orderBy('nis')
             ->get();
 
-        $mappedStudents = $students->map(function (Student $student) {
-            $assessment = $student->assessment;
-            $status = 'pending';
+        $mappedStudents = $students->map(function (Student $student) use ($user, $totalAssignedExaminers) {
+            // Penilaian milik penguji yang sedang login
+            $myAssessment = $student->assessments->firstWhere('examiner_id', $user->id);
 
-            if ($assessment && $assessment->status !== 'pending') {
-                $status = $assessment->status;
+            // Seluruh penilaian yang sudah selesai untuk siswa ini (dari semua penguji)
+            $gradedAssessments = $student->assessments->where('status', '!=', 'pending')->values();
+            $gradedCount = $gradedAssessments->count();
+            $sumScore = round((float) $gradedAssessments->sum('final_score'), 2);
+            $totalHasil = $gradedCount > 0 ? round($sumScore / $gradedCount, 2) : null;
+
+            $status = 'pending';
+            if ($myAssessment && $myAssessment->status !== 'pending') {
+                $status = $myAssessment->status;
             } elseif ($student->is_priority) {
                 $status = 'priority';
             }
@@ -65,17 +74,20 @@ class QueueController extends Controller
                 'is_priority' => $student->is_priority,
                 'priority_note' => $student->priority_note,
                 'queue_status' => $status,
-                'already_graded' => $assessment !== null && $assessment->status !== 'pending',
-                'assessment' => $assessment ? [
-                    'id' => $assessment->id,
-                    'final_score' => $assessment->final_score,
-                    'status' => $assessment->status,
-                    'quick_tags' => $assessment->quick_tags ?? [],
-                    'examiner_note' => $assessment->examiner_note,
-                    'duration_seconds' => $assessment->duration_seconds,
-                    'revision_count' => $assessment->revision_count,
-                    'submitted_at' => $assessment->submitted_at?->toIso8601String(),
-                    'examiner_name' => $assessment->examiner?->name,
+                'already_graded' => $myAssessment !== null && $myAssessment->status !== 'pending',
+                'graded_by_count' => $gradedCount,
+                'total_examiners_assigned' => $totalAssignedExaminers,
+                'total_hasil' => $totalHasil,
+                'assessment' => $myAssessment ? [
+                    'id' => $myAssessment->id,
+                    'final_score' => $myAssessment->final_score,
+                    'status' => $myAssessment->status,
+                    'quick_tags' => $myAssessment->quick_tags ?? [],
+                    'examiner_note' => $myAssessment->examiner_note,
+                    'duration_seconds' => $myAssessment->duration_seconds,
+                    'revision_count' => $myAssessment->revision_count,
+                    'submitted_at' => $myAssessment->submitted_at?->toIso8601String(),
+                    'examiner_name' => $myAssessment->examiner?->name,
                 ] : null,
             ];
         });
@@ -102,9 +114,9 @@ class QueueController extends Controller
 
         $student = Student::with([
             'user',
-            'schoolClass',
-            'assessment.examiner',
-            'assessment.details.rubricItem',
+            'schoolClass.examiners:id,name',
+            'assessments.examiner',
+            'assessments.details.rubricItem',
         ])->where('qr_code_token', $qrToken)
             ->orWhere('nis', $qrToken)
             ->first();
@@ -121,8 +133,13 @@ class QueueController extends Controller
             ], 403);
         }
 
-        $assessment = $student->assessment;
-        $alreadyGraded = $assessment !== null && $assessment->status !== 'pending';
+        $myAssessment = $student->assessments->firstWhere('examiner_id', $user->id);
+        $alreadyGraded = $myAssessment !== null && $myAssessment->status !== 'pending';
+        $gradedAssessments = $student->assessments->where('status', '!=', 'pending')->values();
+        $gradedCount = $gradedAssessments->count();
+        $totalHasil = $gradedCount > 0
+            ? round((float) $gradedAssessments->sum('final_score') / $gradedCount, 2)
+            : null;
 
         return response()->json([
             'already_graded' => $alreadyGraded,
@@ -136,16 +153,18 @@ class QueueController extends Controller
                 'qr_code_token' => $student->qr_code_token,
                 'is_priority' => $student->is_priority,
                 'priority_note' => $student->priority_note,
-                'assessment' => $assessment ? [
-                    'id' => $assessment->id,
-                    'final_score' => $assessment->final_score,
-                    'status' => $assessment->status,
-                    'quick_tags' => $assessment->quick_tags ?? [],
-                    'examiner_note' => $assessment->examiner_note,
-                    'duration_seconds' => $assessment->duration_seconds,
-                    'revision_count' => $assessment->revision_count,
-                    'submitted_at' => $assessment->submitted_at?->toIso8601String(),
-                    'examiner_name' => $assessment->examiner?->name,
+                'graded_by_count' => $gradedCount,
+                'total_hasil' => $totalHasil,
+                'assessment' => $myAssessment ? [
+                    'id' => $myAssessment->id,
+                    'final_score' => $myAssessment->final_score,
+                    'status' => $myAssessment->status,
+                    'quick_tags' => $myAssessment->quick_tags ?? [],
+                    'examiner_note' => $myAssessment->examiner_note,
+                    'duration_seconds' => $myAssessment->duration_seconds,
+                    'revision_count' => $myAssessment->revision_count,
+                    'submitted_at' => $myAssessment->submitted_at?->toIso8601String(),
+                    'examiner_name' => $myAssessment->examiner?->name,
                 ] : null,
             ],
         ]);

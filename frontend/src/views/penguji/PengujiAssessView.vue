@@ -148,6 +148,32 @@
         </button>
       </div>
 
+      <!-- Info Penilaian dari Penguji Lain (Multi-Penguji) -->
+      <div
+        v-if="otherAssessments.length > 0"
+        class="rounded-2xl bg-indigo-50 border border-indigo-200 p-4 flex flex-wrap items-center justify-between gap-3"
+      >
+        <div class="text-xs sm:text-sm text-indigo-950">
+          <p class="font-extrabold">Informasi Penilaian Multi-Penguji:</p>
+          <div class="mt-1 flex flex-wrap gap-2">
+            <span
+              v-for="oa in otherAssessments"
+              :key="oa.id"
+              class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white border border-indigo-200 font-semibold text-xs"
+            >
+              <span>{{ oa.examiner_name }}:</span>
+              <strong :class="oa.status === 'kompeten' ? 'text-emerald-700' : 'text-rose-700'">
+                {{ Number(oa.final_score).toFixed(2) }}
+              </strong>
+            </span>
+          </div>
+        </div>
+        <div v-if="student?.total_hasil !== null && student?.total_hasil !== undefined" class="text-right">
+          <p class="text-[10px] font-bold uppercase text-indigo-600">Total Hasil Saat Ini</p>
+          <p class="text-lg font-black text-indigo-900">{{ Number(student.total_hasil).toFixed(2) }}</p>
+        </div>
+      </div>
+
       <div v-if="loading" class="space-y-4">
         <div v-for="n in 3" :key="n" class="h-52 rounded-3xl bg-white border border-slate-200 animate-pulse"></div>
       </div>
@@ -440,6 +466,7 @@ const loading = ref(true)
 const submitting = ref(false)
 const student = ref(null)
 const existingAssessment = ref(null)
+const otherAssessments = ref([])
 const alreadyGraded = ref(false)
 const pages = ref([])
 const rubrics = ref([])
@@ -622,6 +649,7 @@ async function loadAssessmentData() {
     rubrics.value = data.rubrics || []
     alreadyGraded.value = data.already_graded
     existingAssessment.value = data.assessment
+    otherAssessments.value = data.other_assessments || []
 
     if (pages.value.length > 0) {
       currentPage.value = pages.value[0].page_number

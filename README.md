@@ -143,7 +143,8 @@ ujikom-pplg/
 | Role | Email / NIS (Username) | Password | Keterangan |
 | :--- | :--- | :--- | :--- |
 | **Admin** | `admin@ujikom.sch.id` | `admin123` | Akses penuh monitoring, kelas/jurusan (PPLG & TMS), penguji, rubrik dinamis, cetak kartu, ekspor Excel |
-| **Penguji PPLG** | `penguji@ujikom.sch.id` | `penguji123` | Ditugaskan ke `XII PPLG 1` • PIN Revisi 6-Digit: `123456` |
+| **Penguji 1 PPLG** | `penguji@ujikom.sch.id` | `penguji123` | Ditugaskan ke `XII PPLG 1` • PIN Revisi 6-Digit: `123456` |
+| **Penguji 2 PPLG** | `penguji2@ujikom.sch.id` | `penguji123` | Ditugaskan ke `XII PPLG 1` (Multi-Penguji) • PIN Revisi 6-Digit: `123456` |
 | **Penguji TMS** | `penguji.tms@ujikom.sch.id` | `penguji123` | Ditugaskan ke `XII TMS 1` • PIN Revisi 6-Digit: `123456` |
 | **Siswa PPLG (36)** | `24251001` s/d `24251036` | Sama dengan NIS | 3 siswa Prioritas (`24251001`, `24251005`, `24251012`) |
 | **Siswa TMS (6)** | `24252001` s/d `24252006` | Sama dengan NIS | 1 siswa Prioritas (`24252001`) |

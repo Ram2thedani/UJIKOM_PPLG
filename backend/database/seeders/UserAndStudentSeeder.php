@@ -36,8 +36,8 @@ class UserAndStudentSeeder extends Seeder
             ['major' => 'TMS']
         );
 
-        // 3. Akun Penguji PPLG & Penguji TMS (Penugasan kelas masing-masing)
-        $examinerPplg = User::updateOrCreate(
+        // 3. Akun Penguji PPLG (2 Penguji di kelas yang sama) & Penguji TMS
+        $examinerPplg1 = User::updateOrCreate(
             ['username' => 'penguji@ujikom.sch.id'],
             [
                 'name' => 'Budi Santoso, S.Kom',
@@ -47,7 +47,19 @@ class UserAndStudentSeeder extends Seeder
                 'revision_pin' => '123456',
             ]
         );
-        $examinerPplg->assignedClasses()->sync([$pplgClass->id]);
+        $examinerPplg1->assignedClasses()->sync([$pplgClass->id]);
+
+        $examinerPplg2 = User::updateOrCreate(
+            ['username' => 'penguji2@ujikom.sch.id'],
+            [
+                'name' => 'Siti Aminah, M.Kom',
+                'email' => 'penguji2@ujikom.sch.id',
+                'password' => Hash::make('penguji123'),
+                'role' => 'penguji',
+                'revision_pin' => '123456',
+            ]
+        );
+        $examinerPplg2->assignedClasses()->sync([$pplgClass->id]);
 
         $examinerTms = User::updateOrCreate(
             ['username' => 'penguji.tms@ujikom.sch.id'],

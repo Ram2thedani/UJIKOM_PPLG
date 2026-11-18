@@ -1,12 +1,16 @@
 <template>
   <div class="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-4 sm:p-6">
     <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden">
-      <div class="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-7 text-white text-center">
-        <div class="w-14 h-14 mx-auto mb-3 rounded-2xl bg-white/15 backdrop-blur flex items-center justify-center">
-          <GraduationCap class="w-8 h-8 text-white" />
+      <div class="bg-gradient-to-r from-emerald-700 via-teal-700 to-indigo-800 px-6 py-7 text-white text-center">
+        <div class="w-20 h-20 mx-auto mb-3 rounded-2xl bg-white p-2 shadow-lg flex items-center justify-center overflow-hidden">
+          <img
+            :src="'/api/logo'"
+            alt="Logo Marhas Ujikom"
+            class="w-full h-full object-contain"
+          />
         </div>
-        <h1 class="text-2xl font-extrabold tracking-tight">Sistem Penilaian Ujikom</h1>
-        <p class="text-indigo-100 text-sm mt-1">Uji Kompetensi Keahlian RPL / PPLG</p>
+        <h1 class="text-2xl font-extrabold tracking-tight">Marhas Ujikom</h1>
+        <p class="text-emerald-100 text-sm mt-1">Sistem Penilaian Uji Kompetensi Keahlian (PPLG &amp; TMS)</p>
       </div>
 
       <div class="p-6 sm:p-8">

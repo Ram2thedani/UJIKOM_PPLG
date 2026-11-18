@@ -12,7 +12,26 @@ use App\Http\Controllers\Api\RubricController;
 use App\Http\Controllers\Api\StudentDashboardController;
 use Illuminate\Support\Facades\Route;
 
-// Public Auth Routes
+// Public Auth & Asset Routes
+Route::get('/logo', function () {
+    $candidates = [
+        public_path('logo-marhas.webp'),
+        base_path('../frontend/public/logo-marhas.webp'),
+        'C:/Users/DICOMMA !!/.gemini/antigravity/brain/135686b4-ad4e-429a-93e4-0a9da6d84751/.user_uploaded/media_1794968305429_474e5eb4.webp',
+    ];
+
+    foreach ($candidates as $path) {
+        if (is_file($path)) {
+            return response()->file($path, [
+                'Content-Type' => 'image/webp',
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
+        }
+    }
+
+    abort(404);
+});
+
 Route::post('/login', [AuthController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {

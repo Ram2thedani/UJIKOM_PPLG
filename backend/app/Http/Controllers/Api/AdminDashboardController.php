@@ -15,7 +15,7 @@ class AdminDashboardController extends Controller
 {
     public function index(): JsonResponse
     {
-        $classes = SchoolClass::with(['students.assessment', 'examiners:id,name'])
+        $classes = SchoolClass::with(['students.assessments.examiner', 'examiners:id,name'])
             ->orderBy('major')
             ->orderBy('name')
             ->get();
@@ -25,7 +25,7 @@ class AdminDashboardController extends Controller
         $remedialCount = 0;
         $waitingCount = 0;
         $priorityWaitingCount = 0;
-        $allScores = [];
+        $allTotalHasilScores = [];
 
         $classProgress = $classes->map(function (SchoolClass $schoolClass) use (
             &$totalStudents,
@@ -33,23 +33,34 @@ class AdminDashboardController extends Controller
             &$remedialCount,
             &$waitingCount,
             &$priorityWaitingCount,
-            &$allScores
+            &$allTotalHasilScores
         ) {
             $students = $schoolClass->students;
             $classTotal = $students->count();
-            $classKompeten = $students->filter(fn ($s) => $s->assessment?->status === 'kompeten')->count();
-            $classRemedial = $students->filter(fn ($s) => $s->assessment?->status === 'remedial')->count();
-            $classGraded = $classKompeten + $classRemedial;
-            $classWaiting = $classTotal - $classGraded;
-            $classPriorityWaiting = $students->filter(
-                fn ($s) => $s->is_priority && (! $s->assessment || $s->assessment->status === 'pending')
-            )->count();
+            $classKompeten = 0;
+            $classRemedial = 0;
+            $classPriorityWaiting = 0;
 
             foreach ($students as $student) {
-                if ($student->assessment && $student->assessment->status !== 'pending') {
-                    $allScores[] = (float) $student->assessment->final_score;
+                $graded = $student->assessments->where('status', '!=', 'pending');
+                $cnt = $graded->count();
+
+                if ($cnt > 0) {
+                    $totalHasil = round((float) $graded->sum('final_score') / $cnt, 2);
+                    $allTotalHasilScores[] = $totalHasil;
+
+                    if ($totalHasil >= 80) {
+                        $classKompeten++;
+                    } else {
+                        $classRemedial++;
+                    }
+                } elseif ($student->is_priority) {
+                    $classPriorityWaiting++;
                 }
             }
+
+            $classGraded = $classKompeten + $classRemedial;
+            $classWaiting = $classTotal - $classGraded;
 
             $totalStudents += $classTotal;
             $kompetenCount += $classKompeten;
@@ -103,7 +114,7 @@ class AdminDashboardController extends Controller
         $recentAssessments = Assessment::with(['student.user', 'student.schoolClass', 'examiner'])
             ->where('status', '!=', 'pending')
             ->orderByDesc('submitted_at')
-            ->limit(10)
+            ->limit(100)
             ->get()
             ->map(fn (Assessment $a) => [
                 'id' => $a->id,
@@ -131,7 +142,9 @@ class AdminDashboardController extends Controller
                 'waiting_count' => $waitingCount,
                 'priority_waiting_count' => $priorityWaitingCount,
                 'progress_percent' => $totalStudents > 0 ? round(($gradedCount / $totalStudents) * 100, 1) : 0,
-                'average_score' => count($allScores) > 0 ? round(array_sum($allScores) / count($allScores), 2) : 0,
+                'average_score' => count($allTotalHasilScores) > 0
+                    ? round(array_sum($allTotalHasilScores) / count($allTotalHasilScores), 2)
+                    : 0,
                 'total_examiners' => $examiners->where('role', 'penguji')->count(),
             ],
             'class_progress' => $classProgress,
@@ -144,13 +157,13 @@ class AdminDashboardController extends Controller
     {
         $query = Student::with([
             'user',
-            'schoolClass',
-            'assessment.examiner',
-            'assessment.details',
+            'schoolClass.examiners:id,name,username',
+            'assessments.examiner:id,name,username',
+            'assessments.details',
         ])->orderBy('class_id')->orderBy('nis');
 
         if ($classId !== 'all') {
-            $schoolClass = SchoolClass::findOrFail((int) $classId);
+            $schoolClass = SchoolClass::with('examiners:id,name,username')->findOrFail((int) $classId);
             $query->where('class_id', $schoolClass->id);
             $major = $schoolClass->major;
             $classInfo = [
@@ -159,6 +172,7 @@ class AdminDashboardController extends Controller
                 'major' => $major,
                 'academic_year' => $schoolClass->academic_year,
             ];
+            $assignedExaminers = $schoolClass->examiners;
         } else {
             $major = strtoupper((string) $request->query('major', 'PPLG'));
             $query->whereHas('schoolClass', fn ($q) => $q->where('major', $major));
@@ -168,6 +182,12 @@ class AdminDashboardController extends Controller
                 'major' => $major,
                 'academic_year' => '',
             ];
+            $assignedExaminers = SchoolClass::with('examiners:id,name,username')
+                ->where('major', $major)
+                ->get()
+                ->flatMap(fn (SchoolClass $c) => $c->examiners)
+                ->unique('id')
+                ->values();
         }
 
         $rubrics = RubricItem::where('major', $major)
@@ -175,20 +195,98 @@ class AdminDashboardController extends Controller
             ->orderBy('item_order')
             ->get();
 
-        $rows = $query->get()->map(function (Student $student) use ($rubrics) {
-            $assessment = $student->assessment;
-            $detailsMap = $assessment
-                ? $assessment->details->keyBy('rubric_item_id')
-                : collect();
+        $students = $query->get();
 
-            $scores = [];
-            foreach ($rubrics as $rubric) {
-                $detail = $detailsMap->get($rubric->id);
-                $scores[$rubric->id] = [
-                    'raw_score' => $detail?->raw_score,
-                    'weighted_score' => $detail?->weighted_score,
-                ];
+        // Kumpulkan semua penguji yang ditugaskan di kelas ini ATAU yang pernah menilai siswa di set ini
+        $gradingExaminers = $students
+            ->flatMap(fn (Student $s) => $s->assessments->where('status', '!=', 'pending')->map(fn ($a) => $a->examiner))
+            ->filter()
+            ->unique('id');
+
+        $examiners = $assignedExaminers
+            ->concat($gradingExaminers)
+            ->unique('id')
+            ->sortBy('id')
+            ->map(fn ($u) => [
+                'id' => $u->id,
+                'name' => $u->name,
+                'username' => $u->username,
+            ])->values();
+
+        $rows = $students->map(function (Student $student) use ($rubrics, $examiners) {
+            $gradedAssessments = $student->assessments->where('status', '!=', 'pending')->values();
+            $assessmentsByExaminer = $gradedAssessments->keyBy('examiner_id');
+
+            $examinerScores = [];
+            foreach ($examiners as $ex) {
+                $exId = $ex['id'];
+                /** @var Assessment|null $assessment */
+                $assessment = $assessmentsByExaminer->get($exId);
+                $detailsMap = $assessment ? $assessment->details->keyBy('rubric_item_id') : collect();
+
+                $itemScores = [];
+                foreach ($rubrics as $rubric) {
+                    $detail = $detailsMap->get($rubric->id);
+                    $itemScores[$rubric->id] = [
+                        'raw_score' => $detail?->raw_score,
+                        'weighted_score' => $detail?->weighted_score,
+                    ];
+                }
+
+                $examinerScores[$exId] = $assessment ? [
+                    'examiner_id' => $exId,
+                    'examiner_name' => $ex['name'],
+                    'status' => $assessment->status,
+                    'final_score' => $assessment->final_score,
+                    'quick_tags' => $assessment->quick_tags ?? [],
+                    'examiner_note' => $assessment->examiner_note,
+                    'duration_seconds' => $assessment->duration_seconds,
+                    'revision_count' => $assessment->revision_count,
+                    'submitted_at' => $assessment->submitted_at?->format('Y-m-d H:i:s'),
+                    'scores' => $itemScores,
+                ] : null;
             }
+
+            $gradedCount = $gradedAssessments->count();
+            $sumScore = $gradedCount > 0 ? round((float) $gradedAssessments->sum('final_score'), 2) : null;
+            // Total Hasil = jumlah nilai seluruh penguji dibagi banyaknya penguji yang telah menilai
+            $totalHasil = $gradedCount > 0 ? round($sumScore / $gradedCount, 2) : null;
+            $finalStatus = $gradedCount === 0 ? 'pending' : ($totalHasil >= 80 ? 'kompeten' : 'remedial');
+
+            $averageScores = [];
+            foreach ($rubrics as $rubric) {
+                if ($gradedCount > 0) {
+                    $matchingDetails = $gradedAssessments
+                        ->flatMap(fn (Assessment $a) => $a->details)
+                        ->where('rubric_item_id', $rubric->id);
+                    $cnt = max(1, $matchingDetails->count());
+                    $averageScores[$rubric->id] = [
+                        'raw_score' => round((float) $matchingDetails->sum('raw_score') / $cnt, 2),
+                        'weighted_score' => round((float) $matchingDetails->sum('weighted_score') / $gradedCount, 2),
+                    ];
+                } else {
+                    $averageScores[$rubric->id] = [
+                        'raw_score' => null,
+                        'weighted_score' => null,
+                    ];
+                }
+            }
+
+            $combinedTags = $gradedAssessments
+                ->flatMap(fn (Assessment $a) => $a->quick_tags ?? [])
+                ->unique()
+                ->values()
+                ->all();
+
+            $combinedNotes = $gradedAssessments
+                ->filter(fn (Assessment $a) => ! empty($a->examiner_note))
+                ->map(fn (Assessment $a) => ($a->examiner?->name ?? 'Penguji').': '.$a->examiner_note)
+                ->implode(' | ');
+
+            $examinerNames = $gradedAssessments
+                ->map(fn (Assessment $a) => $a->examiner?->name)
+                ->filter()
+                ->implode(', ');
 
             return [
                 'student_id' => $student->id,
@@ -199,21 +297,27 @@ class AdminDashboardController extends Controller
                 'academic_year' => $student->schoolClass->academic_year,
                 'is_priority' => $student->is_priority,
                 'priority_note' => $student->priority_note,
-                'status' => $assessment ? $assessment->status : 'pending',
-                'final_score' => $assessment ? $assessment->final_score : null,
-                'examiner_name' => $assessment?->examiner?->name,
-                'quick_tags' => $assessment?->quick_tags ?? [],
-                'examiner_note' => $assessment?->examiner_note,
-                'duration_seconds' => $assessment?->duration_seconds ?? 0,
-                'revision_count' => $assessment?->revision_count ?? 0,
-                'submitted_at' => $assessment?->submitted_at?->format('Y-m-d H:i:s'),
-                'scores' => $scores,
+                'graded_examiner_count' => $gradedCount,
+                'assigned_examiner_count' => max(1, $student->schoolClass->examiners->count()),
+                'sum_score' => $sumScore,
+                'total_hasil' => $totalHasil,
+                'final_score' => $totalHasil,
+                'status' => $finalStatus,
+                'examiner_name' => $examinerNames ?: null,
+                'quick_tags' => $combinedTags,
+                'examiner_note' => $combinedNotes ?: null,
+                'duration_seconds' => (int) $gradedAssessments->sum('duration_seconds'),
+                'revision_count' => (int) $gradedAssessments->sum('revision_count'),
+                'submitted_at' => $gradedAssessments->max('submitted_at')?->format('Y-m-d H:i:s'),
+                'scores' => $averageScores,
+                'examiner_scores' => $examinerScores,
             ];
         })->values();
 
         return response()->json([
             'class' => $classInfo,
             'rubrics' => $rubrics,
+            'examiners' => $examiners,
             'rows' => $rows,
         ]);
     }

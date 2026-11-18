@@ -2,13 +2,17 @@
   <header class="no-print sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-slate-200 shadow-sm">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
       <div class="flex items-center gap-3 min-w-0">
-        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-sm shrink-0">
-          <GraduationCap class="w-5 h-5" />
+        <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shadow-xs shrink-0 overflow-hidden">
+          <img
+            :src="'/api/logo'"
+            alt="Logo Marhas Ujikom"
+            class="w-full h-full object-contain"
+          />
         </div>
         <div class="min-w-0">
           <div class="flex items-center gap-2">
-            <h1 class="font-bold text-slate-900 text-base sm:text-lg truncate">
-              UJIKOM PPLG
+            <h1 class="font-extrabold text-slate-900 text-base sm:text-lg truncate">
+              Marhas Ujikom
             </h1>
             <span
               class="px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider rounded-full"
