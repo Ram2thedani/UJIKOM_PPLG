@@ -4,7 +4,7 @@
       <div class="bg-gradient-to-r from-emerald-700 via-teal-700 to-indigo-800 px-6 py-7 text-white text-center">
         <div class="w-20 h-20 mx-auto mb-3 rounded-2xl bg-white p-2 shadow-lg flex items-center justify-center overflow-hidden">
           <img
-            :src="'/api/logo'"
+            :src="'/marhasupdate.webp'"
             alt="Logo Marhas Ujikom"
             class="w-full h-full object-contain"
           />

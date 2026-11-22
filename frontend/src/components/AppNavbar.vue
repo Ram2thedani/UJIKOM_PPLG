@@ -4,7 +4,7 @@
       <div class="flex items-center gap-3 min-w-0">
         <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 p-1 flex items-center justify-center shadow-xs shrink-0 overflow-hidden">
           <img
-            :src="'/api/logo'"
+            :src="`/marhasupdate.webp`"
             alt="Logo Marhas Ujikom"
             class="w-full h-full object-contain"
           />

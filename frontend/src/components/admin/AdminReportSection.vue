@@ -208,7 +208,7 @@
     >
       <!-- Kop Surat Pratinjau -->
       <div class="border-b-4 border-double border-slate-900 pb-4 flex items-center justify-between gap-4">
-        <img :src="'/api/logo'" alt="Logo Marhas" class="w-16 h-16 object-contain shrink-0" />
+        <img :src="'/marhasupdate.webp'" alt="Logo Marhas" class="w-16 h-16 object-contain shrink-0" />
         <div class="text-center flex-1">
           <h3 class="text-xl font-black uppercase tracking-wide text-slate-900">MARHAS UJIKOM</h3>
           <p class="text-sm font-extrabold text-slate-800">

@@ -43,7 +43,7 @@
             <div class="flex items-start justify-between gap-2">
               <div class="flex items-center gap-3 min-w-0">
                 <div class="w-11 h-11 rounded-xl bg-white p-1 shrink-0 shadow-xs flex items-center justify-center">
-                  <img :src="'/api/logo'" alt="Logo Marhas" class="w-full h-full object-contain" />
+                  <img :src="'/marhasupdate.webp'" alt="Logo Marhas" class="w-full h-full object-contain" />
                 </div>
                 <div class="min-w-0">
                   <p class="text-xs font-bold uppercase tracking-wider text-indigo-100">

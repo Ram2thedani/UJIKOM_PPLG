@@ -8,7 +8,7 @@ async function getLogoDataUrl() {
     const loaded = await new Promise((resolve, reject) => {
       img.onload = () => resolve(true)
       img.onerror = reject
-      img.src = '/api/logo'
+      img.src = '/marhasupdate.webp'
     })
     if (loaded) {
       const canvas = document.createElement('canvas')
@@ -22,7 +22,7 @@ async function getLogoDataUrl() {
   } catch {
     // Fallback ke URL absolut jika gagal konversi canvas
   }
-  return `${window.location.origin}/api/logo`
+  return `${window.location.origin}/marhasupdate.webp`
 }
 
 function escapeHtml(val) {

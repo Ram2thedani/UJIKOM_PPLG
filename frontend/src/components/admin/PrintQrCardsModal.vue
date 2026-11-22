@@ -38,7 +38,7 @@
             class="qr-print-card border-2 border-slate-800 rounded-2xl p-4 bg-white flex flex-col items-center text-center"
           >
             <div class="w-full border-b border-slate-200 pb-2 mb-2.5 flex flex-col items-center">
-              <img :src="'/api/logo'" alt="Logo Marhas" class="w-8 h-8 object-contain mb-1" />
+              <img :src="'/marhasupdate.webp'" alt="Logo Marhas" class="w-8 h-8 object-contain mb-1" />
               <p class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">
                 Marhas Ujikom • {{ student.major || 'PPLG' }}
               </p>
