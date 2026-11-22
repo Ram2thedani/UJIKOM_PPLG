@@ -41,11 +41,16 @@
         <section class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden print:max-w-md print:mx-auto print:border-2 print:border-slate-900 print:shadow-none">
           <div class="bg-gradient-to-r from-indigo-600 to-blue-600 px-6 py-5 text-white print:bg-slate-900">
             <div class="flex items-start justify-between gap-2">
-              <div>
-                <p class="text-xs font-bold uppercase tracking-wider text-indigo-100">
-                  Kartu Peserta Ujikom • {{ data.profile.major }}
-                </p>
-                <h3 class="text-lg font-extrabold mt-0.5 leading-snug">{{ data.profile.name }}</h3>
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-11 h-11 rounded-xl bg-white p-1 shrink-0 shadow-xs flex items-center justify-center">
+                  <img :src="'/api/logo'" alt="Logo Marhas" class="w-full h-full object-contain" />
+                </div>
+                <div class="min-w-0">
+                  <p class="text-xs font-bold uppercase tracking-wider text-indigo-100">
+                    Marhas Ujikom • {{ data.profile.major }}
+                  </p>
+                  <h3 class="text-lg font-extrabold mt-0.5 leading-snug truncate">{{ data.profile.name }}</h3>
+                </div>
               </div>
               <span
                 v-if="data.profile.is_priority"
@@ -167,7 +172,9 @@
                 "
               >
                 <div>
-                  <p class="text-xs font-bold uppercase tracking-wider text-slate-500">Nilai Akhir Berbobot</p>
+                  <p class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Nilai Akhir (total_hasil Rata-Rata)
+                  </p>
                   <p
                     class="text-4xl font-black mt-1"
                     :class="data.assessment.status === 'kompeten' ? 'text-emerald-700' : 'text-rose-700'"
@@ -175,13 +182,15 @@
                     {{ formatScore(data.assessment.final_score) }}
                   </p>
                   <p class="text-xs text-slate-600 mt-1">
-                    Ambang batas kelulusan Kompeten: <strong>80.00</strong>
+                    Total Nilai: <strong>{{ formatScore(data.assessment.sum_score) }}</strong> ÷
+                    <strong>{{ data.assessment.examiner_count || 1 }} Penguji</strong>
+                    • Ambang Kompeten: <strong>80.00</strong>
                   </p>
                 </div>
 
                 <div class="text-sm text-slate-700 space-y-1 sm:text-right">
                   <p>
-                    <span class="text-slate-500">Penguji:</span>
+                    <span class="text-slate-500">Penguji ({{ data.assessment.examiner_count || 1 }}):</span>
                     <strong class="ml-1">{{ data.assessment.examiner_name || '-' }}</strong>
                   </p>
                   <p>
@@ -189,8 +198,45 @@
                     <strong class="ml-1">{{ formatDateTime(data.assessment.submitted_at) }}</strong>
                   </p>
                   <p v-if="data.assessment.revision_count > 0" class="text-xs text-amber-700 font-semibold">
-                    Revisi penilaian ke-{{ data.assessment.revision_count }}
+                    Total revisi: {{ data.assessment.revision_count }}x
                   </p>
+                </div>
+              </div>
+
+              <!-- Rincian Nilai per Masing-Masing Penguji -->
+              <div v-if="data.assessment.examiner_assessments?.length" class="space-y-2">
+                <p class="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Nilai dari Masing-Masing Penguji (Digabung &amp; Dirata-rata)
+                </p>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div
+                    v-for="(ea, idx) in data.assessment.examiner_assessments"
+                    :key="ea.id"
+                    class="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between"
+                  >
+                    <div>
+                      <div class="flex items-center gap-1.5">
+                        <span class="text-xs font-bold text-slate-400">Penguji {{ idx + 1 }}</span>
+                        <span
+                          class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase"
+                          :class="
+                            ea.examiner_type === 'eksternal'
+                              ? 'bg-teal-100 text-teal-800'
+                              : 'bg-indigo-100 text-indigo-800'
+                          "
+                        >
+                          {{ ea.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+                        </span>
+                      </div>
+                      <p class="text-sm font-extrabold text-slate-800 mt-0.5">{{ ea.examiner_name }}</p>
+                    </div>
+                    <span
+                      class="text-lg font-black"
+                      :class="ea.status === 'kompeten' ? 'text-emerald-700' : 'text-rose-700'"
+                    >
+                      {{ formatScore(ea.final_score) }}
+                    </span>
+                  </div>
                 </div>
               </div>
 

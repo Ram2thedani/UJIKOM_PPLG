@@ -36,18 +36,32 @@ class UserAndStudentSeeder extends Seeder
             ['major' => 'TMS']
         );
 
-        // 3. Akun Penguji PPLG & Penguji TMS (Penugasan kelas masing-masing)
-        $examinerPplg = User::updateOrCreate(
+        // 3. Akun Penguji PPLG (Internal & Eksternal) & Penguji TMS
+        $examinerPplg1 = User::updateOrCreate(
             ['username' => 'penguji@ujikom.sch.id'],
             [
                 'name' => 'Budi Santoso, S.Kom',
                 'email' => 'penguji@ujikom.sch.id',
                 'password' => Hash::make('penguji123'),
                 'role' => 'penguji',
+                'examiner_type' => 'internal',
                 'revision_pin' => '123456',
             ]
         );
-        $examinerPplg->assignedClasses()->sync([$pplgClass->id]);
+        $examinerPplg1->assignedClasses()->sync([$pplgClass->id]);
+
+        $examinerPplg2 = User::updateOrCreate(
+            ['username' => 'penguji2@ujikom.sch.id'],
+            [
+                'name' => 'Siti Aminah, M.Kom',
+                'email' => 'penguji2@ujikom.sch.id',
+                'password' => Hash::make('penguji123'),
+                'role' => 'penguji',
+                'examiner_type' => 'eksternal',
+                'revision_pin' => '123456',
+            ]
+        );
+        $examinerPplg2->assignedClasses()->sync([$pplgClass->id]);
 
         $examinerTms = User::updateOrCreate(
             ['username' => 'penguji.tms@ujikom.sch.id'],
@@ -56,10 +70,24 @@ class UserAndStudentSeeder extends Seeder
                 'email' => 'penguji.tms@ujikom.sch.id',
                 'password' => Hash::make('penguji123'),
                 'role' => 'penguji',
+                'examiner_type' => 'internal',
                 'revision_pin' => '123456',
             ]
         );
         $examinerTms->assignedClasses()->sync([$tmsClass->id]);
+
+        $examinerTms2 = User::updateOrCreate(
+            ['username' => 'penguji2.tms@ujikom.sch.id'],
+            [
+                'name' => 'Hendra Gunawan, S.T',
+                'email' => 'penguji2.tms@ujikom.sch.id',
+                'password' => Hash::make('penguji123'),
+                'role' => 'penguji',
+                'examiner_type' => 'eksternal',
+                'revision_pin' => '123456',
+            ]
+        );
+        $examinerTms2->assignedClasses()->sync([$tmsClass->id]);
 
         // 4. 36 Akun Siswa PPLG (3 siswa prioritas)
         $pplgStudentNames = [

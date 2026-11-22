@@ -17,6 +17,37 @@
 
         <form class="p-6 space-y-4 overflow-y-auto" @submit.prevent="submitForm">
           <div>
+            <label class="block text-sm font-bold text-slate-700 mb-1.5">Jenis Penguji</label>
+            <div class="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                class="min-h-[46px] px-3 rounded-xl border-2 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition"
+                :class="
+                  form.examiner_type === 'internal'
+                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                "
+                @click="form.examiner_type = 'internal'"
+              >
+                <span>Penguji Internal</span>
+              </button>
+
+              <button
+                type="button"
+                class="min-h-[46px] px-3 rounded-xl border-2 font-extrabold text-xs sm:text-sm flex items-center justify-center gap-2 transition"
+                :class="
+                  form.examiner_type === 'eksternal'
+                    ? 'bg-teal-600 border-teal-600 text-white shadow-xs'
+                    : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                "
+                @click="form.examiner_type = 'eksternal'"
+              >
+                <span>Penguji Eksternal</span>
+              </button>
+            </div>
+          </div>
+
+          <div>
             <label class="block text-sm font-bold text-slate-700 mb-1">Nama Penguji</label>
             <input
               v-model.trim="form.name"
@@ -180,6 +211,7 @@ const saving = ref(false)
 const form = reactive({
   name: '',
   email: '',
+  examiner_type: 'internal',
   password: '',
   revision_pin: '',
   class_ids: [],
@@ -194,12 +226,14 @@ watch(
       if (props.examiner) {
         form.name = props.examiner.name
         form.email = props.examiner.email || props.examiner.username
+        form.examiner_type = props.examiner.examiner_type || 'internal'
         form.password = ''
         form.revision_pin = ''
         form.class_ids = [...(props.examiner.assigned_class_ids || [])]
       } else {
         form.name = ''
         form.email = ''
+        form.examiner_type = 'internal'
         form.password = ''
         form.revision_pin = '123456'
         form.class_ids = []
@@ -219,6 +253,7 @@ async function submitForm() {
     const payload = {
       name: form.name,
       email: form.email,
+      examiner_type: form.examiner_type,
       class_ids: form.class_ids,
     }
     if (form.password) payload.password = form.password

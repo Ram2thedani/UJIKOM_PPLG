@@ -12,7 +12,7 @@ class AdminClassController extends Controller
     public function index(): JsonResponse
     {
         $classes = SchoolClass::withCount(['students', 'examiners'])
-            ->with(['examiners:id,name,email'])
+            ->with(['examiners:id,name,email,examiner_type'])
             ->orderBy('major')
             ->orderBy('name')
             ->get();

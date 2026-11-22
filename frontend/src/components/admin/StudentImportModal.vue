@@ -34,14 +34,11 @@
 
           <div>
             <label class="block text-sm font-bold text-slate-700 mb-1">Target Kelas</label>
-            <select
+            <AppSelect
               v-model="targetClassId"
-              class="w-full px-4 py-3 rounded-xl border border-slate-300 bg-white text-sm font-semibold"
-            >
-              <option v-for="cls in classes" :key="cls.id" :value="cls.id">
-                {{ cls.name }} [{{ cls.major }}] ({{ cls.academic_year }})
-              </option>
-            </select>
+              :options="classOptions"
+              placeholder="Pilih target kelas..."
+            />
           </div>
 
           <div>
@@ -106,9 +103,10 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import * as XLSX from 'xlsx'
 import { Download, FileSpreadsheet, Loader2, Upload, X } from 'lucide-vue-next'
+import AppSelect from '@/components/AppSelect.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 
@@ -126,6 +124,16 @@ const toast = useToast()
 const targetClassId = ref(null)
 const parsedRows = ref([])
 const importing = ref(false)
+
+const classOptions = computed(() =>
+  props.classes.map((cls) => ({
+    value: cls.id,
+    label: cls.name,
+    badge: cls.major,
+    badgeClass: cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800',
+    sublabel: `Tahun Ajaran ${cls.academic_year}`,
+  }))
+)
 
 watch(
   () => props.open,

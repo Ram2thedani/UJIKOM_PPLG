@@ -37,11 +37,12 @@
             :key="student.id"
             class="qr-print-card border-2 border-slate-800 rounded-2xl p-4 bg-white flex flex-col items-center text-center"
           >
-            <div class="w-full border-b border-slate-200 pb-2 mb-2.5">
+            <div class="w-full border-b border-slate-200 pb-2 mb-2.5 flex flex-col items-center">
+              <img :src="'/api/logo'" alt="Logo Marhas" class="w-8 h-8 object-contain mb-1" />
               <p class="text-[10px] font-extrabold uppercase tracking-wider text-indigo-700">
-                Kartu Peserta Ujikom • {{ student.major || 'PPLG' }}
+                Marhas Ujikom • {{ student.major || 'PPLG' }}
               </p>
-              <p class="font-extrabold text-slate-900 text-sm truncate mt-0.5">{{ student.name }}</p>
+              <p class="font-extrabold text-slate-900 text-sm truncate mt-0.5 w-full">{{ student.name }}</p>
               <p class="text-[11px] font-semibold text-slate-600">{{ student.class_name }}</p>
               <span
                 v-if="student.is_priority"

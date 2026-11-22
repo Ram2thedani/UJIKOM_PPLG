@@ -17,7 +17,7 @@ class AdminStudentController extends Controller
 {
     public function index(Request $request): JsonResponse
     {
-        $query = Student::with(['user', 'schoolClass', 'assessment.examiner'])
+        $query = Student::with(['user', 'schoolClass.examiners:id,name', 'assessments.examiner'])
             ->orderBy('class_id')
             ->orderBy('nis');
 
@@ -33,22 +33,35 @@ class AdminStudentController extends Controller
             });
         }
 
-        $students = $query->get()->map(fn (Student $student) => [
-            'id' => $student->id,
-            'user_id' => $student->user_id,
-            'class_id' => $student->class_id,
-            'class_name' => $student->schoolClass->name,
-            'major' => $student->schoolClass->major,
-            'academic_year' => $student->schoolClass->academic_year,
-            'name' => $student->user->name,
-            'nis' => $student->nis,
-            'qr_code_token' => $student->qr_code_token,
-            'is_priority' => $student->is_priority,
-            'priority_note' => $student->priority_note,
-            'assessment_status' => $student->assessment?->status ?? 'pending',
-            'final_score' => $student->assessment?->final_score,
-            'examiner_name' => $student->assessment?->examiner?->name,
-        ]);
+        $students = $query->get()->map(function (Student $student) {
+            $graded = $student->assessments->where('status', '!=', 'pending')->values();
+            $gradedCount = $graded->count();
+            $totalHasil = $gradedCount > 0
+                ? round((float) $graded->sum('final_score') / $gradedCount, 2)
+                : null;
+            $status = $gradedCount === 0
+                ? 'pending'
+                : ($totalHasil >= 80 ? 'kompeten' : 'remedial');
+
+            return [
+                'id' => $student->id,
+                'user_id' => $student->user_id,
+                'class_id' => $student->class_id,
+                'class_name' => $student->schoolClass->name,
+                'major' => $student->schoolClass->major,
+                'academic_year' => $student->schoolClass->academic_year,
+                'name' => $student->user->name,
+                'nis' => $student->nis,
+                'qr_code_token' => $student->qr_code_token,
+                'is_priority' => $student->is_priority,
+                'priority_note' => $student->priority_note,
+                'graded_examiner_count' => $gradedCount,
+                'assigned_examiner_count' => max(1, $student->schoolClass->examiners->count()),
+                'assessment_status' => $status,
+                'final_score' => $totalHasil,
+                'examiner_name' => $graded->map(fn ($a) => $a->examiner?->name)->filter()->implode(', ') ?: null,
+            ];
+        });
 
         return response()->json([
             'students' => $students,

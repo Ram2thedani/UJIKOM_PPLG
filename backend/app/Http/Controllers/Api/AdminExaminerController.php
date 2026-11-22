@@ -25,6 +25,7 @@ class AdminExaminerController extends Controller
                 'username' => $u->username,
                 'email' => $u->email,
                 'role' => $u->role,
+                'examiner_type' => $u->examiner_type ?: 'internal',
                 'has_pin' => $u->hasPinConfigured(),
                 'assessments_count' => $u->assessments_given_count,
                 'assigned_class_ids' => $u->assignedClasses->pluck('id')->values(),
@@ -47,6 +48,7 @@ class AdminExaminerController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email', 'unique:users,username'],
+            'examiner_type' => ['required', 'in:internal,eksternal'],
             'password' => ['required', 'string', 'min:6', 'max:100'],
             'revision_pin' => ['required', 'digits:6'],
             'class_ids' => ['nullable', 'array'],
@@ -60,6 +62,7 @@ class AdminExaminerController extends Controller
                 'email' => $validated['email'],
                 'password' => Hash::make($validated['password']),
                 'role' => 'penguji',
+                'examiner_type' => $validated['examiner_type'],
                 'revision_pin' => $validated['revision_pin'],
             ]);
 
@@ -90,6 +93,7 @@ class AdminExaminerController extends Controller
                 Rule::unique('users', 'username')->ignore($examiner->id),
             ],
             'password' => ['nullable', 'string', 'min:6', 'max:100'],
+            'examiner_type' => ['required', 'in:internal,eksternal'],
             'revision_pin' => ['nullable', 'digits:6'],
             'class_ids' => ['nullable', 'array'],
             'class_ids.*' => ['integer', 'exists:classes,id'],
@@ -100,6 +104,7 @@ class AdminExaminerController extends Controller
                 'name' => $validated['name'],
                 'username' => $validated['email'],
                 'email' => $validated['email'],
+                'examiner_type' => $validated['examiner_type'],
             ];
 
             if (! empty($validated['password'])) {

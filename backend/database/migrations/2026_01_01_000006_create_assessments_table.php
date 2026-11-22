@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('assessments', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->unique()->constrained('students')->onDelete('cascade');
+            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
             $table->foreignId('examiner_id')->constrained('users')->onDelete('cascade');
             $table->decimal('final_score', 5, 2)->default(0);
             $table->enum('status', ['pending', 'kompeten', 'remedial'])->default('pending');
@@ -20,6 +20,8 @@ return new class extends Migration
             $table->unsignedInteger('revision_count')->default(0);
             $table->timestamp('submitted_at')->nullable();
             $table->timestamps();
+
+            $table->unique(['student_id', 'examiner_id'], 'assessments_student_examiner_unique');
         });
     }
 

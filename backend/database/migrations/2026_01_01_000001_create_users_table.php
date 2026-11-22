@@ -15,6 +15,7 @@ return new class extends Migration
             $table->string('email')->nullable()->unique();
             $table->string('password');
             $table->enum('role', ['admin', 'penguji', 'siswa'])->default('siswa');
+            $table->string('examiner_type', 20)->nullable()->default('internal');
             $table->string('revision_pin', 6)->nullable();
             $table->rememberToken();
             $table->timestamps();

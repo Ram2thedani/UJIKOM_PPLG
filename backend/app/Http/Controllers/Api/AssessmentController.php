@@ -20,9 +20,9 @@ class AssessmentController extends Controller
 
         $student = Student::with([
             'user',
-            'schoolClass',
-            'assessment.examiner',
-            'assessment.details.rubricItem',
+            'schoolClass.examiners:id,name',
+            'assessments.examiner',
+            'assessments.details.rubricItem',
         ])->findOrFail($studentId);
 
         if ($user->role === 'penguji' && ! $user->assignedClasses()->where('classes.id', $student->class_id)->exists()) {
@@ -48,7 +48,28 @@ class AssessmentController extends Controller
             ];
         })->values();
 
-        $assessment = $student->assessment;
+        // Penilaian oleh penguji yang sedang login
+        $myAssessment = $student->assessments->firstWhere('examiner_id', $user->id);
+
+        // Penilaian dari penguji lain pada siswa yang sama
+        $otherAssessments = $student->assessments
+            ->where('examiner_id', '!=', $user->id)
+            ->where('status', '!=', 'pending')
+            ->map(fn (Assessment $a) => [
+                'id' => $a->id,
+                'examiner_id' => $a->examiner_id,
+                'examiner_name' => $a->examiner?->name,
+                'examiner_type' => $a->examiner?->examiner_type ?: 'internal',
+                'final_score' => $a->final_score,
+                'status' => $a->status,
+                'submitted_at' => $a->submitted_at?->toIso8601String(),
+            ])->values();
+
+        $gradedAssessments = $student->assessments->where('status', '!=', 'pending')->values();
+        $gradedCount = $gradedAssessments->count();
+        $totalHasil = $gradedCount > 0
+            ? round((float) $gradedAssessments->sum('final_score') / $gradedCount, 2)
+            : null;
 
         return response()->json([
             'student' => [
@@ -62,19 +83,22 @@ class AssessmentController extends Controller
                 'qr_code_token' => $student->qr_code_token,
                 'is_priority' => $student->is_priority,
                 'priority_note' => $student->priority_note,
+                'graded_by_count' => $gradedCount,
+                'total_hasil' => $totalHasil,
             ],
-            'already_graded' => $assessment !== null && $assessment->status !== 'pending',
-            'assessment' => $assessment ? [
-                'id' => $assessment->id,
-                'final_score' => $assessment->final_score,
-                'status' => $assessment->status,
-                'quick_tags' => $assessment->quick_tags ?? [],
-                'examiner_note' => $assessment->examiner_note,
-                'duration_seconds' => $assessment->duration_seconds,
-                'revision_count' => $assessment->revision_count,
-                'submitted_at' => $assessment->submitted_at?->toIso8601String(),
-                'examiner_name' => $assessment->examiner?->name,
-                'details' => $assessment->details->map(fn ($detail) => [
+            'already_graded' => $myAssessment !== null && $myAssessment->status !== 'pending',
+            'other_assessments' => $otherAssessments,
+            'assessment' => $myAssessment ? [
+                'id' => $myAssessment->id,
+                'final_score' => $myAssessment->final_score,
+                'status' => $myAssessment->status,
+                'quick_tags' => $myAssessment->quick_tags ?? [],
+                'examiner_note' => $myAssessment->examiner_note,
+                'duration_seconds' => $myAssessment->duration_seconds,
+                'revision_count' => $myAssessment->revision_count,
+                'submitted_at' => $myAssessment->submitted_at?->toIso8601String(),
+                'examiner_name' => $myAssessment->examiner?->name,
+                'details' => $myAssessment->details->map(fn ($detail) => [
                     'rubric_item_id' => $detail->rubric_item_id,
                     'raw_score' => $detail->raw_score,
                     'weighted_score' => $detail->weighted_score,
@@ -165,7 +189,9 @@ class AssessmentController extends Controller
         }
 
         $assessment = DB::transaction(function () use ($validated, $examiner, $rubrics, $submittedScores) {
+            // Cari penilaian khusus oleh penguji ini pada siswa ini
             $existing = Assessment::where('student_id', $validated['student_id'])
+                ->where('examiner_id', $examiner->id)
                 ->lockForUpdate()
                 ->first();
 
@@ -175,7 +201,7 @@ class AssessmentController extends Controller
                 $pin = (string) ($validated['revision_pin'] ?? '');
                 if (! $examiner->revision_pin || strlen($pin) !== 6 || ! hash_equals((string) $examiner->revision_pin, $pin)) {
                     abort(response()->json([
-                        'message' => 'PIN revisi 6 digit diperlukan dan harus sesuai untuk mengubah nilai siswa yang sudah dinilai.',
+                        'message' => 'PIN revisi 6 digit diperlukan dan harus sesuai untuk mengubah nilai Anda yang sudah tersimpan.',
                         'require_pin' => true,
                     ], 422));
                 }
@@ -201,7 +227,6 @@ class AssessmentController extends Controller
 
             if ($existing) {
                 $existing->update([
-                    'examiner_id' => $examiner->id,
                     'final_score' => $finalScore,
                     'status' => $status,
                     'quick_tags' => array_values($validated['quick_tags'] ?? []),
@@ -225,7 +250,6 @@ class AssessmentController extends Controller
                 ]);
             }
 
-            // Sinkronkan detail rubrik (hapus jika rubrik jurusan sebelumnya berubah)
             AssessmentDetail::where('assessment_id', $assessment->id)
                 ->whereNotIn('rubric_item_id', $rubrics->keys()->all())
                 ->delete();

@@ -41,15 +41,11 @@
 
             <div>
               <label class="block text-sm font-bold text-slate-700 mb-1">Kelas</label>
-              <select
+              <AppSelect
                 v-model="form.class_id"
-                required
-                class="w-full px-4 py-3 rounded-xl border border-slate-300 focus:border-indigo-500 outline-none text-sm bg-white"
-              >
-                <option v-for="cls in classes" :key="cls.id" :value="cls.id">
-                  {{ cls.name }} [{{ cls.major }}] ({{ cls.academic_year }})
-                </option>
-              </select>
+                :options="classOptions"
+                placeholder="Pilih kelas siswa..."
+              />
             </div>
           </div>
 
@@ -115,6 +111,7 @@
 <script setup>
 import { computed, reactive, ref, watch } from 'vue'
 import { Loader2, X } from 'lucide-vue-next'
+import AppSelect from '@/components/AppSelect.vue'
 import api from '@/services/api'
 import { useToast } from '@/composables/useToast'
 
@@ -144,6 +141,16 @@ const form = reactive({
 })
 
 const isEdit = computed(() => Boolean(props.student?.id))
+
+const classOptions = computed(() =>
+  props.classes.map((cls) => ({
+    value: cls.id,
+    label: cls.name,
+    badge: cls.major,
+    badgeClass: cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800',
+    sublabel: `Tahun Ajaran ${cls.academic_year}`,
+  }))
+)
 
 watch(
   () => props.open,

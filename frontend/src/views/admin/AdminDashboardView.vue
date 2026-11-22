@@ -48,27 +48,20 @@
       <section v-if="activeTab === 'monitoring'" class="space-y-6">
         <div class="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-3xl p-5 sm:p-6 text-white flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-lg shadow-indigo-600/15">
           <div>
-            <h2 class="text-xl font-extrabold">Monitoring & Rekapitulasi Nilai Ujikom</h2>
+            <h2 class="text-xl font-extrabold">Monitoring &amp; Rekapitulasi Nilai Ujikom</h2>
             <p class="text-sm text-indigo-100 mt-0.5">
-              Pantau progres kelas PPLG & TMS secara real-time dan ekspor rekap Excel lengkap.
+              Ekspor Excel otomatis membuat <strong>Sheet per Penguji</strong>, <strong>Rubrik_Penilaian</strong>, dan sheet akhir <strong>total_hasil</strong> (Total Nilai ÷ Banyak Penguji yang Menilai).
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2.5">
-            <select
-              v-model="exportTarget"
-              class="min-h-[46px] px-3.5 rounded-xl bg-white/15 border border-white/25 text-white text-sm font-semibold outline-none"
-            >
-              <option value="all|PPLG" class="text-slate-900">Semua Kelas Jurusan PPLG</option>
-              <option value="all|TMS" class="text-slate-900">Semua Kelas Jurusan TMS</option>
-              <option
-                v-for="cls in classes"
-                :key="cls.id"
-                :value="String(cls.id)"
-                class="text-slate-900"
-              >
-                {{ cls.name }} [{{ cls.major }}]
-              </option>
-            </select>
+            <div class="w-64">
+              <AppSelect
+                v-model="exportTarget"
+                variant="glass"
+                :options="exportTargetOptions"
+                @change="loadRecapData"
+              />
+            </div>
             <button
               type="button"
               :disabled="exporting"
@@ -77,7 +70,7 @@
             >
               <Loader2 v-if="exporting" class="w-4 h-4 animate-spin" />
               <FileSpreadsheet v-else class="w-4 h-4" />
-              <span>{{ exporting ? 'Menyiapkan...' : 'Ekspor Excel (.xlsx)' }}</span>
+              <span>{{ exporting ? 'Menyiapkan...' : 'Ekspor Multi-Sheet Excel (.xlsx)' }}</span>
             </button>
           </div>
         </div>
@@ -116,9 +109,9 @@
           </div>
         </div>
 
-        <!-- Progres Kelas & Penguji -->
-        <div v-if="dashboard" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
+        <!-- Progres Kelas & Tabel Progres Penguji -->
+        <div v-if="dashboard" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div class="lg:col-span-5 bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
             <div class="flex items-center justify-between mb-4">
               <h3 class="font-extrabold text-slate-900 text-base">Progres Penilaian per Kelas</h3>
               <button
@@ -175,99 +168,224 @@
             </div>
           </div>
 
-          <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-            <h3 class="font-extrabold text-slate-900 text-base mb-4">Progres & Penugasan Penguji</h3>
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm text-left">
-                <thead class="text-xs uppercase text-slate-400 border-b border-slate-200">
-                  <tr>
-                    <th class="pb-2.5">Nama Penguji</th>
-                    <th class="pb-2.5">Kelas Tugas</th>
-                    <th class="pb-2.5 text-center">Dinilai</th>
-                    <th class="pb-2.5 text-center">Komp / Rem</th>
-                    <th class="pb-2.5 text-right">Rata2</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                  <tr v-for="ex in dashboard.examiner_progress" :key="ex.id">
-                    <td class="py-3">
-                      <p class="font-bold text-slate-800">{{ ex.name }}</p>
-                      <p class="text-xs text-slate-400">{{ ex.username }}</p>
-                    </td>
-                    <td class="py-3">
-                      <div v-if="ex.assigned_classes?.length" class="flex flex-wrap gap-1">
-                        <span
-                          v-for="cname in ex.assigned_classes"
-                          :key="cname"
-                          class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[11px] font-bold"
-                        >
-                          {{ cname }}
-                        </span>
-                      </div>
-                      <span v-else class="text-xs text-slate-400">
-                        {{ ex.role === 'admin' ? 'Semua Kelas' : 'Belum diatur' }}
-                      </span>
-                    </td>
-                    <td class="py-3 text-center font-extrabold text-indigo-600">{{ ex.total_graded }}</td>
-                    <td class="py-3 text-center text-xs font-bold">
-                      <span class="text-emerald-600">{{ ex.kompeten_count }}</span> /
-                      <span class="text-rose-600">{{ ex.remedial_count }}</span>
-                    </td>
-                    <td class="py-3 text-right font-bold">{{ formatScore(ex.average_score) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
+          <div class="lg:col-span-7 space-y-2">
+            <AdminDataTable
+              :rows="dashboard.examiner_progress"
+              :columns="examinerProgressColumns"
+              row-key="id"
+              :default-page-size="5"
+              empty-text="Belum ada data penguji."
+            >
+              <template #toolbar-left>
+                <span class="text-sm font-extrabold text-slate-900 pl-2 border-l border-slate-200">
+                  Progres &amp; Penugasan Penguji
+                </span>
+              </template>
+
+              <template #cell-name="{ row }">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <p class="font-bold text-slate-800">{{ row.name }}</p>
+                  <span
+                    v-if="row.role === 'penguji'"
+                    class="px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase"
+                    :class="
+                      row.examiner_type === 'eksternal'
+                        ? 'bg-teal-100 text-teal-800'
+                        : 'bg-indigo-100 text-indigo-800'
+                    "
+                  >
+                    {{ row.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+                  </span>
+                </div>
+                <p class="text-xs text-slate-400">{{ row.username }}</p>
+              </template>
+
+              <template #cell-assigned_classes="{ row }">
+                <div v-if="row.assigned_classes?.length" class="flex flex-wrap gap-1">
+                  <span
+                    v-for="cname in row.assigned_classes"
+                    :key="cname"
+                    class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 text-[11px] font-bold"
+                  >
+                    {{ cname }}
+                  </span>
+                </div>
+                <span v-else class="text-xs text-slate-400">
+                  {{ row.role === 'admin' ? 'Semua Kelas' : 'Belum diatur' }}
+                </span>
+              </template>
+
+              <template #cell-total_graded="{ row }">
+                <span class="font-extrabold text-indigo-600">{{ row.total_graded }}</span>
+              </template>
+
+              <template #cell-komp_rem="{ row }">
+                <span class="text-xs font-bold">
+                  <span class="text-emerald-600">{{ row.kompeten_count }}</span> /
+                  <span class="text-rose-600">{{ row.remedial_count }}</span>
+                </span>
+              </template>
+
+              <template #cell-average_score="{ row }">
+                <span class="font-bold">{{ formatScore(row.average_score) }}</span>
+              </template>
+            </AdminDataTable>
           </div>
         </div>
 
-        <!-- Penilaian Terbaru -->
-        <div v-if="dashboard" class="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-          <h3 class="font-extrabold text-slate-900 text-base mb-4">10 Penilaian Terbaru</h3>
-          <div v-if="dashboard.recent_assessments.length === 0" class="text-sm text-slate-500 py-4 text-center">
-            Belum ada penilaian yang disubmit.
+        <!-- Tabel Rekapitulasi Multi-Penguji (Pratinjau Sheet Akhir: total_hasil) -->
+        <div v-if="recapData" class="space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-2 px-1">
+            <div>
+              <h3 class="font-extrabold text-slate-900 text-base">
+                Tabel Rekapitulasi Nilai Siswa &amp; Perhitungan <code class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700">total_hasil</code>
+              </h3>
+              <p class="text-xs text-slate-500">
+                Menampilkan nilai dari masing-masing penguji pada <strong>{{ recapData.class?.name }}</strong> serta <strong>total_hasil = Jumlah Nilai ÷ Banyaknya Penguji yang Menilai</strong>.
+              </p>
+            </div>
           </div>
-          <div v-else class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="text-xs uppercase text-slate-400 border-b border-slate-200">
-                <tr>
-                  <th class="pb-2.5">Siswa</th>
-                  <th class="pb-2.5">Kelas</th>
-                  <th class="pb-2.5">Penguji</th>
-                  <th class="pb-2.5 text-center">Nilai</th>
-                  <th class="pb-2.5 text-center">Status</th>
-                  <th class="pb-2.5 text-right">Waktu</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr v-for="item in dashboard.recent_assessments" :key="item.id">
-                  <td class="py-3">
-                    <p class="font-bold text-slate-800">{{ item.student_name }}</p>
-                    <p class="text-xs font-mono text-slate-400">{{ item.nis }}</p>
-                  </td>
-                  <td class="py-3 text-slate-600">
-                    {{ item.class_name }}
-                    <span class="ml-1 px-1.5 py-0.5 rounded bg-slate-100 text-[10px] font-bold">{{ item.major }}</span>
-                  </td>
-                  <td class="py-3 text-slate-600">{{ item.examiner_name }}</td>
-                  <td class="py-3 text-center font-black">{{ formatScore(item.final_score) }}</td>
-                  <td class="py-3 text-center">
-                    <span
-                      class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
-                      :class="
-                        item.status === 'kompeten'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-rose-100 text-rose-800'
-                      "
-                    >
-                      {{ item.status }}
-                    </span>
-                  </td>
-                  <td class="py-3 text-right text-xs text-slate-500">{{ formatDateTime(item.submitted_at) }}</td>
-                </tr>
-              </tbody>
-            </table>
+
+          <AdminDataTable
+            :rows="recapData.rows || []"
+            :columns="recapTableColumns"
+            row-key="student_id"
+            :default-page-size="10"
+            empty-text="Tidak ada data rekapitulasi siswa pada kelas ini."
+          >
+            <template #toolbar-right>
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-slate-600">Filter Kelas:</span>
+                <div class="w-60">
+                  <AppSelect
+                    v-model="exportTarget"
+                    size="xs"
+                    :options="exportTargetOptions"
+                    @change="loadRecapData"
+                  />
+                </div>
+              </div>
+            </template>
+
+            <template #cell-nis="{ row }">
+              <span class="font-mono text-xs font-bold text-slate-700">{{ row.nis }}</span>
+            </template>
+
+            <template #cell-name="{ row }">
+              <span class="font-bold text-slate-900">{{ row.name }}</span>
+            </template>
+
+            <template
+              v-for="ex in recapData.examiners || []"
+              :key="`slot-ex-${ex.id}`"
+              #[`cell-examiner_${ex.id}`]="{ row }"
+            >
+              <span
+                v-if="row.examiner_scores?.[ex.id]?.final_score !== undefined && row.examiner_scores?.[ex.id]?.final_score !== null"
+                :class="row.examiner_scores[ex.id].status === 'kompeten' ? 'text-emerald-700 font-bold' : 'text-rose-700 font-bold'"
+              >
+                {{ formatScore(row.examiner_scores[ex.id].final_score) }}
+              </span>
+              <span v-else class="text-slate-300">-</span>
+            </template>
+
+            <template #cell-sum_score="{ row }">
+              <span class="font-semibold text-slate-700">{{ formatScore(row.sum_score) }}</span>
+            </template>
+
+            <template #cell-graded_examiner_count="{ row }">
+              <span class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-bold">
+                {{ row.graded_examiner_count }} / {{ row.assigned_examiner_count }}
+              </span>
+            </template>
+
+            <template #cell-total_hasil="{ row }">
+              <span
+                v-if="row.total_hasil !== null"
+                class="font-black text-base"
+                :class="row.total_hasil >= 80 ? 'text-emerald-700' : 'text-rose-700'"
+              >
+                {{ formatScore(row.total_hasil) }}
+              </span>
+              <span v-else class="text-slate-400">-</span>
+            </template>
+
+            <template #cell-status="{ row }">
+              <span
+                class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
+                :class="{
+                  'bg-emerald-100 text-emerald-800': row.status === 'kompeten',
+                  'bg-rose-100 text-rose-800': row.status === 'remedial',
+                  'bg-slate-100 text-slate-600': row.status === 'pending',
+                }"
+              >
+                {{ row.status === 'pending' ? 'Menunggu' : row.status }}
+              </span>
+            </template>
+          </AdminDataTable>
+        </div>
+
+        <!-- Tabel Penilaian Terbaru -->
+        <div v-if="dashboard" class="space-y-2">
+          <div class="px-1">
+            <h3 class="font-extrabold text-slate-900 text-base">Riwayat Penilaian Terbaru</h3>
           </div>
+
+          <AdminDataTable
+            :rows="dashboard.recent_assessments || []"
+            :columns="recentAssessmentsColumns"
+            row-key="id"
+            :default-page-size="10"
+            empty-text="Belum ada penilaian yang disubmit."
+          >
+            <template #cell-student_name="{ row }">
+              <p class="font-bold text-slate-800">{{ row.student_name }}</p>
+              <p class="text-xs font-mono text-slate-400">{{ row.nis }}</p>
+            </template>
+
+            <template #cell-class_name="{ row }">
+              <span class="text-slate-700 font-medium">{{ row.class_name }}</span>
+              <span
+                class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold uppercase"
+                :class="row.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'"
+              >
+                {{ row.major }}
+              </span>
+            </template>
+
+            <template #cell-examiner_name="{ row }">
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="font-semibold text-slate-800">{{ row.examiner_name }}</span>
+                <span
+                  class="px-1.5 py-0.5 rounded text-[10px] font-extrabold uppercase"
+                  :class="
+                    row.examiner_type === 'eksternal'
+                      ? 'bg-teal-100 text-teal-800'
+                      : 'bg-indigo-100 text-indigo-800'
+                  "
+                >
+                  {{ row.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+                </span>
+              </div>
+            </template>
+
+            <template #cell-final_score="{ row }">
+              <span class="font-black">{{ formatScore(row.final_score) }}</span>
+            </template>
+
+            <template #cell-status="{ row }">
+              <span
+                class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
+                :class="row.status === 'kompeten' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
+              >
+                {{ row.status }}
+              </span>
+            </template>
+
+            <template #cell-submitted_at="{ row }">
+              <span class="text-xs text-slate-500">{{ formatDateTime(row.submitted_at) }}</span>
+            </template>
+          </AdminDataTable>
         </div>
       </section>
 
@@ -275,7 +393,7 @@
       <section v-if="activeTab === 'classes'" class="space-y-5">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex flex-wrap items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-extrabold text-slate-900">Manajemen Kelas & Jurusan (PPLG / TMS)</h2>
+            <h2 class="text-lg font-extrabold text-slate-900">Manajemen Kelas &amp; Jurusan (PPLG / TMS)</h2>
             <p class="text-xs text-slate-500">Tambahkan kelas secara manual dan pilih jurusan sebelum menugaskan penguji.</p>
           </div>
           <button
@@ -288,94 +406,84 @@
           </button>
         </div>
 
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th class="px-5 py-3.5">Nama Kelas</th>
-                  <th class="px-5 py-3.5">Jurusan</th>
-                  <th class="px-5 py-3.5">Tahun Ajaran</th>
-                  <th class="px-5 py-3.5 text-center">Jumlah Siswa</th>
-                  <th class="px-5 py-3.5">Penguji Ditugaskan</th>
-                  <th class="px-5 py-3.5 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr v-for="cls in classes" :key="cls.id" class="hover:bg-slate-50">
-                  <td class="px-5 py-3.5 font-extrabold text-slate-900">{{ cls.name }}</td>
-                  <td class="px-5 py-3.5">
-                    <span
-                      class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
-                      :class="cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'"
-                    >
-                      {{ cls.major }}
-                    </span>
-                  </td>
-                  <td class="px-5 py-3.5 text-slate-600">{{ cls.academic_year }}</td>
-                  <td class="px-5 py-3.5 text-center font-bold text-slate-800">{{ cls.students_count || 0 }}</td>
-                  <td class="px-5 py-3.5">
-                    <div v-if="cls.examiners?.length" class="flex flex-wrap gap-1.5">
-                      <span
-                        v-for="ex in cls.examiners"
-                        :key="ex.id"
-                        class="px-2 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-xs font-semibold"
-                      >
-                        {{ ex.name }}
-                      </span>
-                    </div>
-                    <span v-else class="text-xs text-rose-500 font-semibold">Belum ada penguji</span>
-                  </td>
-                  <td class="px-5 py-3.5 text-right">
-                    <div class="inline-flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        class="p-2 rounded-xl bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-700 transition"
-                        title="Edit Kelas"
-                        @click="openEditClass(cls)"
-                      >
-                        <Pencil class="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        class="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 transition"
-                        title="Hapus Kelas"
-                        @click="deleteClass(cls)"
-                      >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AdminDataTable
+          :rows="classes"
+          :columns="classesTableColumns"
+          row-key="id"
+          :default-page-size="10"
+          empty-text="Belum ada data kelas."
+        >
+          <template #cell-name="{ row }">
+            <span class="font-extrabold text-slate-900">{{ row.name }}</span>
+          </template>
+
+          <template #cell-major="{ row }">
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
+              :class="row.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'"
+            >
+              {{ row.major }}
+            </span>
+          </template>
+
+          <template #cell-students_count="{ row }">
+            <span class="font-bold text-slate-800">{{ row.students_count || 0 }}</span>
+          </template>
+
+          <template #cell-examiners="{ row }">
+            <div v-if="row.examiners?.length" class="flex flex-wrap gap-1.5">
+              <span
+                v-for="ex in row.examiners"
+                :key="ex.id"
+                class="px-2 py-0.5 rounded-lg text-xs font-semibold inline-flex items-center gap-1"
+                :class="
+                  ex.examiner_type === 'eksternal'
+                    ? 'bg-teal-50 text-teal-800 border border-teal-200'
+                    : 'bg-indigo-50 text-indigo-800 border border-indigo-200'
+                "
+              >
+                <span>{{ ex.name }}</span>
+                <span class="text-[10px] font-extrabold uppercase opacity-80">
+                  ({{ ex.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }})
+                </span>
+              </span>
+            </div>
+            <span v-else class="text-xs text-rose-500 font-semibold">Belum ada penguji</span>
+          </template>
+
+          <template #cell-actions="{ row }">
+            <div class="inline-flex items-center gap-1.5">
+              <button
+                type="button"
+                class="p-2 rounded-xl bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-700 transition"
+                title="Edit Kelas"
+                @click="openEditClass(row)"
+              >
+                <Pencil class="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                class="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 transition"
+                title="Hapus Kelas"
+                @click="deleteClass(row)"
+              >
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
+          </template>
+        </AdminDataTable>
       </section>
 
       <!-- TAB 3: MANAJEMEN SISWA & CETAK QR MASSAL -->
       <section v-if="activeTab === 'students'" class="space-y-5">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div class="flex flex-wrap items-center gap-3 flex-1">
-            <select
-              v-model="studentFilter.class_id"
-              class="min-h-[44px] px-3.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold"
-              @change="loadStudents"
-            >
-              <option value="all">Semua Kelas</option>
-              <option v-for="cls in classes" :key="cls.id" :value="cls.id">
-                {{ cls.name }} [{{ cls.major }}]
-              </option>
-            </select>
-
-            <div class="relative flex-1 min-w-[200px]">
-              <Search class="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                v-model.trim="studentFilter.search"
-                type="search"
-                placeholder="Cari nama atau NIS siswa..."
-                class="w-full min-h-[44px] pl-10 pr-4 rounded-xl border border-slate-300 text-sm outline-none focus:border-indigo-500"
-                @input="loadStudents"
+            <span class="text-xs font-bold uppercase tracking-wider text-slate-500">Filter Kelas:</span>
+            <div class="w-64">
+              <AppSelect
+                v-model="studentFilter.class_id"
+                :options="studentClassFilterOptions"
+                @change="loadStudents"
               />
             </div>
           </div>
@@ -383,7 +491,7 @@
           <div class="flex flex-wrap gap-2.5">
             <button
               type="button"
-              class="min-h-[44px] px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold flex items-center gap-2 transition"
+              class="min-h-[46px] px-4 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold flex items-center gap-2 transition"
               @click="printModalOpen = true"
             >
               <Printer class="w-4 h-4" />
@@ -392,7 +500,7 @@
 
             <button
               type="button"
-              class="min-h-[44px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-2 transition"
+              class="min-h-[46px] px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold flex items-center gap-2 transition"
               @click="importModalOpen = true"
             >
               <FileSpreadsheet class="w-4 h-4" />
@@ -401,7 +509,7 @@
 
             <button
               type="button"
-              class="min-h-[44px] px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-2 transition"
+              class="min-h-[46px] px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold flex items-center gap-2 transition"
               @click="openAddStudent"
             >
               <Plus class="w-4 h-4" />
@@ -410,93 +518,94 @@
           </div>
         </div>
 
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th class="px-5 py-3.5">NIS</th>
-                  <th class="px-5 py-3.5">Nama Siswa</th>
-                  <th class="px-5 py-3.5">Kelas & Jurusan</th>
-                  <th class="px-5 py-3.5">Prioritas</th>
-                  <th class="px-5 py-3.5 text-center">Status Ujikom</th>
-                  <th class="px-5 py-3.5 text-center">Nilai</th>
-                  <th class="px-5 py-3.5 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr v-for="s in students" :key="s.id" class="hover:bg-slate-50">
-                  <td class="px-5 py-3.5 font-mono font-bold text-slate-700">{{ s.nis }}</td>
-                  <td class="px-5 py-3.5">
-                    <p class="font-bold text-slate-900">{{ s.name }}</p>
-                    <p class="font-mono text-[11px] text-slate-400">QR: {{ s.qr_code_token.slice(0, 14) }}...</p>
-                  </td>
-                  <td class="px-5 py-3.5 text-slate-600">
-                    {{ s.class_name }}
-                    <span
-                      class="ml-1.5 px-2 py-0.5 rounded text-[10px] font-extrabold uppercase"
-                      :class="s.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'"
-                    >
-                      {{ s.major }}
-                    </span>
-                  </td>
-                  <td class="px-5 py-3.5">
-                    <span
-                      v-if="s.is_priority"
-                      class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-bold"
-                    >
-                      <Star class="w-3 h-3 fill-amber-500 text-amber-600" />
-                      {{ s.priority_note || 'Prioritas' }}
-                    </span>
-                    <span v-else class="text-xs text-slate-400">Reguler</span>
-                  </td>
-                  <td class="px-5 py-3.5 text-center">
-                    <span
-                      class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
-                      :class="{
-                        'bg-emerald-100 text-emerald-800': s.assessment_status === 'kompeten',
-                        'bg-rose-100 text-rose-800': s.assessment_status === 'remedial',
-                        'bg-slate-100 text-slate-600': s.assessment_status === 'pending',
-                      }"
-                    >
-                      {{ s.assessment_status === 'pending' ? 'Menunggu' : s.assessment_status }}
-                    </span>
-                  </td>
-                  <td class="px-5 py-3.5 text-center font-black">
-                    {{ formatScore(s.final_score) }}
-                  </td>
-                  <td class="px-5 py-3.5 text-right">
-                    <div class="inline-flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        class="p-2 rounded-xl bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-700 transition"
-                        title="Edit Siswa"
-                        @click="openEditStudent(s)"
-                      >
-                        <Pencil class="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        class="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 transition"
-                        title="Hapus Siswa"
-                        @click="deleteStudent(s)"
-                      >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AdminDataTable
+          :rows="students"
+          :columns="studentsTableColumns"
+          row-key="id"
+          :default-page-size="10"
+          empty-text="Tidak ada data siswa yang sesuai filter."
+        >
+          <template #cell-nis="{ row }">
+            <span class="font-mono font-bold text-slate-700">{{ row.nis }}</span>
+          </template>
+
+          <template #cell-name="{ row }">
+            <p class="font-bold text-slate-900">{{ row.name }}</p>
+            <p class="font-mono text-[11px] text-slate-400">QR: {{ row.qr_code_token.slice(0, 14) }}...</p>
+          </template>
+
+          <template #cell-class_name="{ row }">
+            <span class="font-semibold text-slate-700">{{ row.class_name }}</span>
+          </template>
+
+          <template #cell-major="{ row }">
+            <span
+              class="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase"
+              :class="row.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'"
+            >
+              {{ row.major }}
+            </span>
+          </template>
+
+          <template #cell-priority="{ row }">
+            <span
+              v-if="row.is_priority"
+              class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-xs font-bold"
+            >
+              <Star class="w-3 h-3 fill-amber-500 text-amber-600" />
+              {{ row.priority_note || 'Prioritas' }}
+            </span>
+            <span v-else class="text-xs text-slate-400">Reguler</span>
+          </template>
+
+          <template #cell-assessment_status="{ row }">
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
+              :class="{
+                'bg-emerald-100 text-emerald-800': row.assessment_status === 'kompeten',
+                'bg-rose-100 text-rose-800': row.assessment_status === 'remedial',
+                'bg-slate-100 text-slate-600': row.assessment_status === 'pending',
+              }"
+            >
+              {{ row.assessment_status === 'pending' ? 'Menunggu' : row.assessment_status }}
+            </span>
+          </template>
+
+          <template #cell-final_score="{ row }">
+            <p class="font-black text-slate-900">{{ formatScore(row.final_score) }}</p>
+            <p class="text-[11px] font-semibold text-slate-500">
+              {{ row.graded_examiner_count || 0 }}/{{ row.assigned_examiner_count || 1 }} Penguji
+            </p>
+          </template>
+
+          <template #cell-actions="{ row }">
+            <div class="inline-flex items-center gap-1.5">
+              <button
+                type="button"
+                class="p-2 rounded-xl bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-700 transition"
+                title="Edit Siswa"
+                @click="openEditStudent(row)"
+              >
+                <Pencil class="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                class="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 transition"
+                title="Hapus Siswa"
+                @click="deleteStudent(row)"
+              >
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
+          </template>
+        </AdminDataTable>
       </section>
 
       <!-- TAB 4: MANAJEMEN AKUN PENGUJI & PENUGASAN KELAS -->
       <section v-if="activeTab === 'examiners'" class="space-y-5">
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 flex items-center justify-between gap-3">
           <div>
-            <h2 class="text-lg font-extrabold text-slate-900">Daftar Akun Penguji & Penugasan Kelas</h2>
+            <h2 class="text-lg font-extrabold text-slate-900">Daftar Akun Penguji &amp; Penugasan Kelas</h2>
             <p class="text-xs text-slate-500">
               Tetapkan kelas mana saja (bisa 1, 2, atau lebih kelas dari PPLG / TMS) yang diuji oleh masing-masing penguji.
             </p>
@@ -511,69 +620,81 @@
           </button>
         </div>
 
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm text-left">
-              <thead class="bg-slate-50 text-xs uppercase text-slate-500 border-b border-slate-200">
-                <tr>
-                  <th class="px-5 py-3.5">Nama Penguji</th>
-                  <th class="px-5 py-3.5">Email / Username</th>
-                  <th class="px-5 py-3.5">Kelas yang Diuji</th>
-                  <th class="px-5 py-3.5 text-center">PIN Revisi</th>
-                  <th class="px-5 py-3.5 text-center">Siswa Dinilai</th>
-                  <th class="px-5 py-3.5 text-right">Aksi</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                <tr v-for="ex in examiners" :key="ex.id" class="hover:bg-slate-50">
-                  <td class="px-5 py-3.5 font-bold text-slate-900">{{ ex.name }}</td>
-                  <td class="px-5 py-3.5 font-mono text-xs text-slate-600">{{ ex.email || ex.username }}</td>
-                  <td class="px-5 py-3.5">
-                    <div v-if="ex.assigned_classes?.length" class="flex flex-wrap gap-1.5">
-                      <span
-                        v-for="cls in ex.assigned_classes"
-                        :key="cls.id"
-                        class="px-2 py-0.5 rounded-lg text-xs font-bold"
-                        :class="cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'"
-                      >
-                        {{ cls.name }} ({{ cls.major }})
-                      </span>
-                    </div>
-                    <span v-else class="text-xs text-rose-500 font-semibold">Belum ditugaskan ke kelas</span>
-                  </td>
-                  <td class="px-5 py-3.5 text-center">
-                    <span
-                      class="px-2.5 py-1 rounded-full text-xs font-bold"
-                      :class="ex.has_pin ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
-                    >
-                      {{ ex.has_pin ? '6-Digit Aktif' : 'Belum Diatur' }}
-                    </span>
-                  </td>
-                  <td class="px-5 py-3.5 text-center font-extrabold text-indigo-600">{{ ex.assessments_count }}</td>
-                  <td class="px-5 py-3.5 text-right">
-                    <div class="inline-flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        class="p-2 rounded-xl bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-700 transition"
-                        title="Edit & Atur Kelas Penguji"
-                        @click="openEditExaminer(ex)"
-                      >
-                        <Pencil class="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        class="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 transition"
-                        @click="deleteExaminer(ex)"
-                      >
-                        <Trash2 class="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <AdminDataTable
+          :rows="examiners"
+          :columns="examinersTableColumns"
+          row-key="id"
+          :default-page-size="10"
+          empty-text="Belum ada akun penguji."
+        >
+          <template #cell-name="{ row }">
+            <span class="font-bold text-slate-900">{{ row.name }}</span>
+          </template>
+
+          <template #cell-examiner_type="{ row }">
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-extrabold uppercase"
+              :class="
+                row.examiner_type === 'eksternal'
+                  ? 'bg-teal-100 text-teal-800'
+                  : 'bg-indigo-100 text-indigo-800'
+              "
+            >
+              {{ row.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal' }}
+            </span>
+          </template>
+
+          <template #cell-email="{ row }">
+            <span class="font-mono text-xs text-slate-600">{{ row.email || row.username }}</span>
+          </template>
+
+          <template #cell-assigned_classes="{ row }">
+            <div v-if="row.assigned_classes?.length" class="flex flex-wrap gap-1.5">
+              <span
+                v-for="cls in row.assigned_classes"
+                :key="cls.id"
+                class="px-2 py-0.5 rounded-lg text-xs font-bold"
+                :class="cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800'"
+              >
+                {{ cls.name }} ({{ cls.major }})
+              </span>
+            </div>
+            <span v-else class="text-xs text-rose-500 font-semibold">Belum ditugaskan ke kelas</span>
+          </template>
+
+          <template #cell-pin_status="{ row }">
+            <span
+              class="px-2.5 py-1 rounded-full text-xs font-bold"
+              :class="row.has_pin ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'"
+            >
+              {{ row.has_pin ? '6-Digit Aktif' : 'Belum Diatur' }}
+            </span>
+          </template>
+
+          <template #cell-assessments_count="{ row }">
+            <span class="font-extrabold text-indigo-600">{{ row.assessments_count }}</span>
+          </template>
+
+          <template #cell-actions="{ row }">
+            <div class="inline-flex items-center gap-1.5">
+              <button
+                type="button"
+                class="p-2 rounded-xl bg-slate-100 hover:bg-indigo-100 text-slate-700 hover:text-indigo-700 transition"
+                title="Edit & Atur Kelas Penguji"
+                @click="openEditExaminer(row)"
+              >
+                <Pencil class="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                class="p-2 rounded-xl bg-slate-100 hover:bg-rose-100 text-slate-700 hover:text-rose-700 transition"
+                @click="deleteExaminer(row)"
+              >
+                <Trash2 class="w-4 h-4" />
+              </button>
+            </div>
+          </template>
+        </AdminDataTable>
       </section>
 
       <!-- TAB 5: PENGATURAN RUBRIK & BOBOT PER JURUSAN + TAMBAH HALAMAN MANUAL -->
@@ -581,14 +702,13 @@
         <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5 space-y-4 sticky top-20 z-20">
           <div class="flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h2 class="text-lg font-extrabold text-slate-900">Pengaturan Rubrik & Bobot per Jurusan</h2>
+              <h2 class="text-lg font-extrabold text-slate-900">Pengaturan Rubrik &amp; Bobot per Jurusan</h2>
               <p class="text-xs text-slate-500">
                 Kelompokkan rubrik untuk PPLG atau TMS, tambahkan halaman baru secara manual, dan pastikan total bobot = 100%.
               </p>
             </div>
 
             <div class="flex flex-wrap items-center gap-2.5">
-              <!-- Switcher Jurusan -->
               <div class="inline-flex p-1 rounded-2xl bg-slate-100 border border-slate-200">
                 <button
                   v-for="m in ['PPLG', 'TMS']"
@@ -640,7 +760,6 @@
           </div>
         </div>
 
-        <!-- Grouped by Page Number (Hal 1, Hal 2, Hal 3, dst.) -->
         <div v-if="rubricPages.length === 0" class="bg-white rounded-3xl border border-slate-200 p-10 text-center">
           <p class="font-bold text-slate-700">Belum ada halaman rubrik untuk jurusan {{ activeRubricMajor }}.</p>
           <button
@@ -658,7 +777,6 @@
             :key="pageGroup.page_number"
             class="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
           >
-            <!-- Page Header -->
             <div class="px-5 py-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
               <div class="flex flex-wrap items-center gap-3 flex-1 min-w-[240px]">
                 <span class="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-extrabold uppercase shrink-0">
@@ -696,7 +814,6 @@
               </div>
             </div>
 
-            <!-- Rubric Items inside this Page -->
             <div class="p-5 space-y-4">
               <div
                 v-for="(item, idx) in pageGroup.items"
@@ -706,12 +823,10 @@
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                   <div class="md:col-span-2">
                     <label class="block text-[11px] font-bold uppercase text-slate-400 mb-1">Pindah Hal.</label>
-                    <input
-                      v-model.number="item.page_number"
-                      type="number"
-                      min="1"
-                      max="50"
-                      class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-bold"
+                    <AppSelect
+                      v-model="item.page_number"
+                      size="sm"
+                      :options="rubricPageSelectOptions"
                     />
                   </div>
 
@@ -767,6 +882,11 @@
           </div>
         </div>
       </section>
+
+      <!-- TAB 6: LAPORAN NILAI (PDF & WORD) PER SISWA / PER KELAS / JURUSAN -->
+      <section v-if="activeTab === 'reports'">
+        <AdminReportSection :classes="classes" />
+      </section>
     </main>
 
     <!-- Modals -->
@@ -813,6 +933,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import {
   Activity,
   FileSpreadsheet,
+  FileText,
   FolderKanban,
   ListChecks,
   Loader2,
@@ -828,6 +949,9 @@ import {
   Users,
 } from 'lucide-vue-next'
 import AppNavbar from '@/components/AppNavbar.vue'
+import AppSelect from '@/components/AppSelect.vue'
+import AdminDataTable from '@/components/admin/AdminDataTable.vue'
+import AdminReportSection from '@/components/admin/AdminReportSection.vue'
 import ClassFormModal from '@/components/admin/ClassFormModal.vue'
 import StudentFormModal from '@/components/admin/StudentFormModal.vue'
 import StudentImportModal from '@/components/admin/StudentImportModal.vue'
@@ -842,6 +966,7 @@ const toast = useToast()
 
 const tabs = [
   { key: 'monitoring', label: 'Monitoring & Ekspor', icon: Activity },
+  { key: 'reports', label: 'Laporan (PDF / Word)', icon: FileText },
   { key: 'classes', label: 'Kelas & Jurusan', icon: FolderKanban },
   { key: 'students', label: 'Siswa & Cetak Kartu', icon: Users },
   { key: 'examiners', label: 'Akun Penguji', icon: UserCog },
@@ -863,6 +988,7 @@ const activeRubricMajor = ref('PPLG')
 
 const exportTarget = ref('all|PPLG')
 const exporting = ref(false)
+const recapData = ref(null)
 
 const classModalOpen = ref(false)
 const editingClass = ref(null)
@@ -877,6 +1003,263 @@ const examinerModalOpen = ref(false)
 const editingExaminer = ref(null)
 
 const savingRubrics = ref(false)
+
+// Options untuk Combobox AppSelect
+const exportTargetOptions = computed(() => [
+  {
+    value: 'all|PPLG',
+    label: 'Semua Kelas Jurusan PPLG',
+    badge: 'PPLG',
+    badgeClass: 'bg-indigo-100 text-indigo-800',
+    sublabel: 'Rekapitulasi seluruh kelas PPLG',
+  },
+  {
+    value: 'all|TMS',
+    label: 'Semua Kelas Jurusan TMS',
+    badge: 'TMS',
+    badgeClass: 'bg-amber-100 text-amber-800',
+    sublabel: 'Rekapitulasi seluruh kelas TMS',
+  },
+  ...classes.value.map((cls) => ({
+    value: String(cls.id),
+    label: cls.name,
+    badge: cls.major,
+    badgeClass: cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800',
+    sublabel: `Tahun Ajaran ${cls.academic_year} • ${cls.students_count || 0} Siswa`,
+  })),
+])
+
+const studentClassFilterOptions = computed(() => [
+  {
+    value: 'all',
+    label: 'Semua Kelas',
+    sublabel: 'Tampilkan siswa dari seluruh kelas',
+  },
+  ...classes.value.map((cls) => ({
+    value: cls.id,
+    label: cls.name,
+    badge: cls.major,
+    badgeClass: cls.major === 'TMS' ? 'bg-amber-100 text-amber-800' : 'bg-indigo-100 text-indigo-800',
+    sublabel: `Tahun Ajaran ${cls.academic_year}`,
+  })),
+])
+
+// Definisi Kolom Tabel dengan Filter di Setiap Judul Tabel
+const examinerProgressColumns = [
+  {
+    key: 'name',
+    label: 'Nama Penguji',
+    accessor: (r) => `${r.name} ${r.username}`,
+  },
+  {
+    key: 'assigned_classes',
+    label: 'Kelas Tugas',
+    accessor: (r) => (r.assigned_classes?.length ? r.assigned_classes.join(', ') : r.role === 'admin' ? 'Semua Kelas' : 'Belum diatur'),
+  },
+  {
+    key: 'total_graded',
+    label: 'Dinilai',
+    align: 'center',
+  },
+  {
+    key: 'komp_rem',
+    label: 'Komp / Rem',
+    align: 'center',
+    accessor: (r) => `${r.kompeten_count}/${r.remedial_count}`,
+  },
+  {
+    key: 'average_score',
+    label: 'Rata2',
+    align: 'right',
+  },
+]
+
+const recapTableColumns = computed(() => {
+  const dynamicExaminerCols = (recapData.value?.examiners || []).map((ex, idx) => {
+    const typeLabel = ex.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal'
+    return {
+      key: `examiner_${ex.id}`,
+      label: `P${idx + 1}: ${ex.name} (${typeLabel})`,
+      align: 'center',
+      accessor: (row) => {
+        const score = row.examiner_scores?.[ex.id]?.final_score
+        return score !== null && score !== undefined ? Number(score).toFixed(2) : '-'
+      },
+    }
+  })
+
+  return [
+    { key: 'nis', label: 'NIS' },
+    { key: 'name', label: 'Nama Siswa' },
+    { key: 'class_name', label: 'Kelas', filterType: 'select' },
+    ...dynamicExaminerCols,
+    {
+      key: 'sum_score',
+      label: 'Jumlah Nilai',
+      align: 'center',
+      accessor: (r) => (r.sum_score !== null && r.sum_score !== undefined ? Number(r.sum_score).toFixed(2) : '-'),
+    },
+    {
+      key: 'graded_examiner_count',
+      label: 'Penguji Menilai',
+      align: 'center',
+      accessor: (r) => `${r.graded_examiner_count}/${r.assigned_examiner_count}`,
+    },
+    {
+      key: 'total_hasil',
+      label: 'total_hasil',
+      align: 'center',
+      headerClass: 'bg-indigo-50/70 text-indigo-900',
+      cellClass: 'bg-indigo-50/30',
+      accessor: (r) => (r.total_hasil !== null && r.total_hasil !== undefined ? Number(r.total_hasil).toFixed(2) : '-'),
+    },
+    {
+      key: 'status',
+      label: 'Status Akhir',
+      align: 'center',
+      filterType: 'select',
+      filterOptions: [
+        { label: 'Kompeten', value: 'kompeten', dotClass: 'bg-emerald-500' },
+        { label: 'Remedial', value: 'remedial', dotClass: 'bg-rose-500' },
+        { label: 'Menunggu', value: 'pending', dotClass: 'bg-slate-400' },
+      ],
+    },
+  ]
+})
+
+const recentAssessmentsColumns = [
+  {
+    key: 'student_name',
+    label: 'Siswa / NIS',
+    accessor: (r) => `${r.student_name} ${r.nis}`,
+  },
+  {
+    key: 'class_name',
+    label: 'Kelas',
+    filterType: 'select',
+  },
+  {
+    key: 'examiner_name',
+    label: 'Penguji',
+  },
+  {
+    key: 'final_score',
+    label: 'Nilai',
+    align: 'center',
+  },
+  {
+    key: 'status',
+    label: 'Status',
+    align: 'center',
+    filterType: 'select',
+    filterOptions: [
+      { label: 'Kompeten', value: 'kompeten', dotClass: 'bg-emerald-500' },
+      { label: 'Remedial', value: 'remedial', dotClass: 'bg-rose-500' },
+    ],
+  },
+  {
+    key: 'submitted_at',
+    label: 'Waktu',
+    align: 'right',
+    accessor: (r) => formatDateTime(r.submitted_at),
+  },
+]
+
+const classesTableColumns = [
+  { key: 'name', label: 'Nama Kelas' },
+  {
+    key: 'major',
+    label: 'Jurusan',
+    filterType: 'select',
+    filterOptions: [
+      { label: 'PPLG', value: 'PPLG', badge: 'PPLG', badgeClass: 'bg-indigo-100 text-indigo-800' },
+      { label: 'TMS', value: 'TMS', badge: 'TMS', badgeClass: 'bg-amber-100 text-amber-800' },
+    ],
+  },
+  { key: 'academic_year', label: 'Tahun Ajaran', filterType: 'select' },
+  { key: 'students_count', label: 'Jumlah Siswa', align: 'center' },
+  {
+    key: 'examiners',
+    label: 'Penguji Ditugaskan',
+    accessor: (r) => (r.examiners?.length ? r.examiners.map((e) => e.name).join(', ') : 'Belum ada penguji'),
+  },
+  { key: 'actions', label: 'Aksi', align: 'right', sortable: false, filterable: false },
+]
+
+const studentsTableColumns = [
+  { key: 'nis', label: 'NIS' },
+  { key: 'name', label: 'Nama Siswa' },
+  { key: 'class_name', label: 'Kelas', filterType: 'select' },
+  {
+    key: 'major',
+    label: 'Jurusan',
+    filterType: 'select',
+    filterOptions: [
+      { label: 'PPLG', value: 'PPLG', badge: 'PPLG', badgeClass: 'bg-indigo-100 text-indigo-800' },
+      { label: 'TMS', value: 'TMS', badge: 'TMS', badgeClass: 'bg-amber-100 text-amber-800' },
+    ],
+  },
+  {
+    key: 'priority',
+    label: 'Prioritas',
+    filterType: 'select',
+    accessor: (r) => (r.is_priority ? 'Prioritas' : 'Reguler'),
+    filterOptions: [
+      { label: 'Prioritas', value: 'Prioritas', dotClass: 'bg-amber-500' },
+      { label: 'Reguler', value: 'Reguler', dotClass: 'bg-slate-400' },
+    ],
+  },
+  {
+    key: 'assessment_status',
+    label: 'Status Ujikom',
+    align: 'center',
+    filterType: 'select',
+    filterOptions: [
+      { label: 'Kompeten', value: 'kompeten', dotClass: 'bg-emerald-500' },
+      { label: 'Remedial', value: 'remedial', dotClass: 'bg-rose-500' },
+      { label: 'Menunggu', value: 'pending', dotClass: 'bg-slate-400' },
+    ],
+  },
+  {
+    key: 'final_score',
+    label: 'Nilai (total_hasil)',
+    align: 'center',
+    accessor: (r) => (r.final_score !== null && r.final_score !== undefined ? Number(r.final_score).toFixed(2) : '-'),
+  },
+  { key: 'actions', label: 'Aksi', align: 'right', sortable: false, filterable: false },
+]
+
+const examinersTableColumns = [
+  { key: 'name', label: 'Nama Penguji' },
+  {
+    key: 'examiner_type',
+    label: 'Jenis Penguji',
+    align: 'center',
+    accessor: (r) => (r.examiner_type === 'eksternal' ? 'Eksternal' : 'Internal'),
+  },
+  { key: 'email', label: 'Email / Username', accessor: (r) => r.email || r.username },
+  {
+    key: 'assigned_classes',
+    label: 'Kelas yang Diuji',
+    accessor: (r) =>
+      r.assigned_classes?.length
+        ? r.assigned_classes.map((c) => `${c.name} (${c.major})`).join(', ')
+        : 'Belum ditugaskan',
+  },
+  {
+    key: 'pin_status',
+    label: 'PIN Revisi',
+    align: 'center',
+    filterType: 'select',
+    accessor: (r) => (r.has_pin ? 'Aktif' : 'Belum Diatur'),
+    filterOptions: [
+      { label: '6-Digit Aktif', value: 'Aktif', dotClass: 'bg-emerald-500' },
+      { label: 'Belum Diatur', value: 'Belum Diatur', dotClass: 'bg-rose-500' },
+    ],
+  },
+  { key: 'assessments_count', label: 'Siswa Dinilai', align: 'center' },
+  { key: 'actions', label: 'Aksi', align: 'right', sortable: false, filterable: false },
+]
 
 const totalRubricWeight = computed(() =>
   editableRubrics.value.reduce((sum, r) => sum + (Number(r.weight) || 0), 0)
@@ -903,6 +1286,18 @@ const rubricPages = computed(() => {
   })
 
   return Array.from(map.values())
+})
+
+const rubricPageSelectOptions = computed(() => {
+  const maxPage = Math.max(
+    3,
+    editableRubrics.value.reduce((m, r) => Math.max(m, Number(r.page_number) || 1), 1) + 1
+  )
+  const opts = []
+  for (let i = 1; i <= maxPage; i++) {
+    opts.push({ label: `Halaman ${i}`, value: i })
+  }
+  return opts
 })
 
 async function loadDashboard() {
@@ -953,8 +1348,32 @@ async function switchRubricMajor(major) {
   await loadRubrics()
 }
 
+async function loadRecapData() {
+  try {
+    let url = ''
+    if (exportTarget.value.startsWith('all|')) {
+      const major = exportTarget.value.split('|')[1]
+      url = `/admin/export/all?major=${encodeURIComponent(major)}`
+    } else {
+      url = `/admin/export/${exportTarget.value}`
+    }
+    const { data } = await api.get(url)
+    recapData.value = data
+    return data
+  } catch {
+    return null
+  }
+}
+
 async function refreshAll() {
-  await Promise.all([loadDashboard(), loadClasses(), loadStudents(), loadExaminers(), loadRubrics()])
+  await Promise.all([
+    loadDashboard(),
+    loadClasses(),
+    loadStudents(),
+    loadExaminers(),
+    loadRubrics(),
+    loadRecapData(),
+  ])
 }
 
 function openAddClass() {
@@ -969,7 +1388,7 @@ function openEditClass(cls) {
 
 async function onClassSaved() {
   classModalOpen.value = false
-  await Promise.all([loadClasses(), loadDashboard(), loadExaminers()])
+  await Promise.all([loadClasses(), loadDashboard(), loadExaminers(), loadRecapData()])
 }
 
 async function deleteClass(cls) {
@@ -977,7 +1396,7 @@ async function deleteClass(cls) {
   try {
     await api.delete(`/admin/classes/${cls.id}`)
     toast.success('Kelas berhasil dihapus.')
-    await Promise.all([loadClasses(), loadDashboard(), loadExaminers()])
+    await Promise.all([loadClasses(), loadDashboard(), loadExaminers(), loadRecapData()])
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal menghapus kelas.')
   }
@@ -986,16 +1405,10 @@ async function deleteClass(cls) {
 async function handleExportExcel() {
   exporting.value = true
   try {
-    let url = ''
-    if (exportTarget.value.startsWith('all|')) {
-      const major = exportTarget.value.split('|')[1]
-      url = `/admin/export/all?major=${encodeURIComponent(major)}`
-    } else {
-      url = `/admin/export/${exportTarget.value}`
-    }
-    const { data } = await api.get(url)
+    const data = await loadRecapData()
+    if (!data) throw new Error('Data kosong')
     exportAssessmentExcel(data)
-    toast.success('File Excel rekap nilai berhasil diunduh.')
+    toast.success('File Excel multi-sheet (termasuk sheet akhir total_hasil) berhasil diunduh.')
   } catch {
     toast.error('Gagal mengekspor data ke Excel.')
   } finally {
@@ -1015,12 +1428,12 @@ function openEditStudent(student) {
 
 async function onStudentSaved() {
   studentModalOpen.value = false
-  await Promise.all([loadStudents(), loadDashboard(), loadClasses()])
+  await Promise.all([loadStudents(), loadDashboard(), loadClasses(), loadRecapData()])
 }
 
 async function onStudentsImported() {
   importModalOpen.value = false
-  await Promise.all([loadStudents(), loadDashboard(), loadClasses()])
+  await Promise.all([loadStudents(), loadDashboard(), loadClasses(), loadRecapData()])
 }
 
 async function deleteStudent(student) {
@@ -1028,7 +1441,7 @@ async function deleteStudent(student) {
   try {
     await api.delete(`/admin/students/${student.id}`)
     toast.success('Siswa berhasil dihapus.')
-    await Promise.all([loadStudents(), loadDashboard(), loadClasses()])
+    await Promise.all([loadStudents(), loadDashboard(), loadClasses(), loadRecapData()])
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal menghapus siswa.')
   }
@@ -1046,7 +1459,7 @@ function openEditExaminer(examiner) {
 
 async function onExaminerSaved() {
   examinerModalOpen.value = false
-  await Promise.all([loadExaminers(), loadDashboard(), loadClasses()])
+  await Promise.all([loadExaminers(), loadDashboard(), loadClasses(), loadRecapData()])
 }
 
 async function deleteExaminer(examiner) {
@@ -1054,7 +1467,7 @@ async function deleteExaminer(examiner) {
   try {
     await api.delete(`/admin/examiners/${examiner.id}`)
     toast.success('Akun penguji berhasil dihapus.')
-    await Promise.all([loadExaminers(), loadDashboard(), loadClasses()])
+    await Promise.all([loadExaminers(), loadDashboard(), loadClasses(), loadRecapData()])
   } catch (err) {
     toast.error(err.response?.data?.message || 'Gagal menghapus akun penguji.')
   }
@@ -1157,6 +1570,7 @@ function setupPolling() {
     refreshInterval = setInterval(() => {
       if (activeTab.value === 'monitoring') {
         loadDashboard()
+        loadRecapData()
       }
     }, 15000)
   }
