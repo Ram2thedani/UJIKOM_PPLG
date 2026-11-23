@@ -78,45 +78,7 @@
           </button>
         </form>
 
-        <div class="mt-7 pt-6 border-t border-slate-200">
-          <p class="text-xs font-bold uppercase tracking-wider text-slate-400 text-center mb-3">
-            Demo Login Cepat (1-Klik)
-          </p>
-          <div class="grid grid-cols-3 gap-2.5">
-            <button
-              type="button"
-              :disabled="auth.loading"
-              class="flex flex-col items-center justify-center gap-1.5 p-3 min-h-[68px] rounded-2xl border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 transition active:scale-95"
-              @click="quickLogin('admin@ujikom.sch.id', 'admin123')"
-            >
-              <ShieldCheck class="w-5 h-5 text-purple-600" />
-              <span class="text-xs font-bold">Admin</span>
-            </button>
-
-            <button
-              type="button"
-              :disabled="auth.loading"
-              class="flex flex-col items-center justify-center gap-1.5 p-3 min-h-[68px] rounded-2xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-800 transition active:scale-95"
-              @click="quickLogin('penguji@ujikom.sch.id', 'penguji123')"
-            >
-              <ClipboardCheck class="w-5 h-5 text-indigo-600" />
-              <span class="text-xs font-bold">Penguji</span>
-            </button>
-
-            <button
-              type="button"
-              :disabled="auth.loading"
-              class="flex flex-col items-center justify-center gap-1.5 p-3 min-h-[68px] rounded-2xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition active:scale-95"
-              @click="quickLogin('24251001', '24251001')"
-            >
-              <UserCheck class="w-5 h-5 text-emerald-600" />
-              <span class="text-xs font-bold">Siswa</span>
-            </button>
-          </div>
-          <p class="text-[11px] text-slate-400 text-center mt-3">
-            PIN Revisi Penguji Default: <span class="font-mono font-bold text-slate-600">123456</span>
-          </p>
-        </div>
+        
       </div>
     </div>
   </div>
